@@ -1,0 +1,20 @@
+PSR                            1748-2021E
+EPHEM                               DE405
+UNITS                                 TDB
+RAJ                     17:48:51.40000000
+DECJ                   -20:20:45.00000000
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  61.485464851294274524 1 1.7719032018989808649e-08
+F1                                    0.0
+PEPOCH             50000.0000000000000000
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+NE_SW                                10.0
+SWM                                   0.0
+DM                                  224.0
+DM1                                   0.0
+TZRMJD             53681.7000000000000000
+TZRSITE                                GB
+TZRFRQ                           1949.609
