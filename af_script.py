@@ -1091,7 +1091,7 @@ def main(argv=None):
             if (
                 np.abs(diff) > args.check_bp_min_diff and args.check_bad_points == True and ngroups > 10
             ):
-                skip_phases, t_others, mask, bad_mjds = bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name, iteration, t_others, mask, skip_phases)
+                skip_phases, t_others, mask, bad_mjds = bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name, iteration, t_others, mask, skip_phases, bad_mjds)
             
             #if difference in phase is >0.35, and not a bad point, try phase wraps to see if point fits better wrapped
             if (
