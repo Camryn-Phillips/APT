@@ -187,7 +187,7 @@ def Ftest_param(r_model, fitter, param_name):
     m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model)
     
     #calculate the Ftest, comparing the chi2 and degrees of freedom of the two models
-    Ftest_p = pint.utils.FTest(float(m_rs.chi2.value), m_rs.dof, float(m_plus_p_rs.chi2.value), m_plus_p_rs.dof)
+    Ftest_p = pint.utils.FTest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
     #The Ftest determines how likely (from 0. to 1.) that improvement due to the new parameter is due to chance and not necessity
     #Ftests close to zero mean the parameter addition is necessary, close to 1 the addition is unnecessary, 
     #and NaN means the fit got worse when the parameter was added
@@ -203,7 +203,7 @@ def Ftest_param(r_model, fitter, param_name):
         m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model)
         
         #recalculate the Ftest
-        Ftest_p = ut.Ftest(float(m_rs.chi2.value), m_rs.dof, float(m_plus_p_rs.chi2.value), m_plus_p_rs.dof)
+        Ftest_p = ut.Ftest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
     
     #print the Ftest for the parameter and return the value of the Ftest
     print('Ftest'+param_name+':',Ftest_p)
@@ -235,7 +235,7 @@ def Ftest_param_phases(r_model, fitter, param_name):
     m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model, track_mode="use_pulse_numbers")
     
     #calculate the Ftest, comparing the chi2 and degrees of freedom of the two models
-    Ftest_p = pint.utils.FTest(float(m_rs.chi2.value), m_rs.dof, float(m_plus_p_rs.chi2.value), m_plus_p_rs.dof)
+    Ftest_p = pint.utils.FTest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
     #The Ftest determines how likely (from 0. to 1.) that improvement due to the new parameter is due to chance and not necessity
     #Ftests close to zero mean the parameter addition is necessary, close to 1 the addition is unnecessary, 
     #and NaN means the fit got worse when the parameter was added
@@ -251,7 +251,7 @@ def Ftest_param_phases(r_model, fitter, param_name):
         m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model, track_mode="use_pulse_numbers")
 
         #recalculate the Ftest
-        Ftest_p = ut.Ftest(float(m_rs.chi2.value), m_rs.dof, float(m_plus_p_rs.chi2.value), m_plus_p_rs.dof)
+        Ftest_p = ut.Ftest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
     
     #print the Ftest for the parameter and return the value of the Ftest
     print('Ftest'+param_name+':',Ftest_p)
@@ -651,7 +651,6 @@ def plot_wraps(f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, w
                     
     #save the image in alg_saves with the iteration and wrap number
     plt.savefig('./alg_saves4/%s/%s_%03d_P%03d.png'%(sys_name, sys_name, iteration, wrap), overwrite=True)
-    plt.show()
     plt.close()
 
     
@@ -703,7 +702,6 @@ def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, 
     secaxy.set_ylabel("residuals (phase)")
     
     plt.savefig('./alg_saves4/%s/%s_%03d.png'%(sys_name, sys_name, iteration), overwrite=True)
-    plt.show()
     plt.close()
 
 
@@ -1123,11 +1121,11 @@ def main(argv=None):
                     plot_wraps(f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, wrap, sys_name)            
                     
                     #repeat model selection with phase wrap. f.model should be same as f_phases[-1].model (all f_phases[n] should be the same)
-                    chi2_ext_phase = [pint.residuals.Residuals(t_others_phases[-1], rmods[i], track_mode="use_pulse_numbers").chi2_reduced.value for i in range(len(rmods))]
+                    chi2_ext_phase = [pint.residuals.Residuals(t_others_phases[-1], rmods[i], track_mode="use_pulse_numbers").chi2_reduced for i in range(len(rmods))]
                     chi2_dict_phase = dict(zip(chi2_ext_phase, rmods))
                     
                     #append 0model to dict so it can also be a possibility
-                    chi2_dict_phase[pint.residuals.Residuals(t_others_phases[-1], f.model, track_mode="use_pulse_numbers").chi2_reduced.value] = f.model
+                    chi2_dict_phase[pint.residuals.Residuals(t_others_phases[-1], f.model, track_mode="use_pulse_numbers").chi2_reduced] = f.model
                     min_chi2_phase = sorted(chi2_dict_phase.keys())[0]
                     
                     #m_phases is list of best models from each phase wrap
@@ -1146,7 +1144,7 @@ def main(argv=None):
                     #current best fit chi2 (extended points and actually fit for with maybe new param)
                     f_phases[-1] = pint.fitter.WLSFitter(t_phases[-1], m_phases[-1])
                     f_phases[-1].fit_toas()
-                    chi2_phases.append(pint.residuals.Residuals(t_phases[-1], f_phases[-1].model, track_mode="use_pulse_numbers").chi2.value)
+                    chi2_phases.append(pint.residuals.Residuals(t_phases[-1], f_phases[-1].model, track_mode="use_pulse_numbers").chi2)
                 
                 #have run over all phase wraps
                 #compare chi2 to see which is best and use that one's f, m, and t as the "correct" f, m, and t 
@@ -1205,11 +1203,11 @@ def main(argv=None):
                 plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax)            
                 
                 #get next model by comparing chi2 for t_others
-                chi2_ext = [pint.residuals.Residuals(t_others, rmods[i]).chi2_reduced.value for i in range(len(rmods))]
+                chi2_ext = [pint.residuals.Residuals(t_others, rmods[i]).chi2_reduced for i in range(len(rmods))]
                 chi2_dict = dict(zip(chi2_ext, rmods))
                 
                 #append 0model to dict so it can also be a possibility
-                chi2_dict[pint.residuals.Residuals(t_others, f.model).chi2_reduced.value] = f.model
+                chi2_dict[pint.residuals.Residuals(t_others, f.model).chi2_reduced] = f.model
                 min_chi2 = sorted(chi2_dict.keys())[0]
                 
                 #the model with the smallest chi2 is chosen as the new best fit model
@@ -1224,7 +1222,7 @@ def main(argv=None):
                 #current best fit chi2 (extended points and actually fit for with maybe new param)
                 f = pint.fitter.WLSFitter(t, m)
                 f.fit_toas()
-                chi2_new_ext = pint.residuals.Residuals(t, f.model).chi2.value
+                chi2_new_ext = pint.residuals.Residuals(t, f.model).chi2
                 #END INDENT FOR ELSE (RESID < 0.35)
                 
             #fit toas just in case 
