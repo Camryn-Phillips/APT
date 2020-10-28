@@ -378,7 +378,7 @@ def bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name
         plt.show()
     
     else:
-        plt.savefig('./alg_saves4/%s/%s_%03d_B.png'%(sys_name, sys_name, iteration), overwrite=True)
+        plt.savefig('./alg_saves/%s/%s_%03d_B.png'%(sys_name, sys_name, iteration), overwrite=True)
         plt.clf()
         
     if (
@@ -592,19 +592,31 @@ def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
 def plot_wraps(f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, wrap, sys_name):
     #plot with phase wrap
 
+    chi2_summary = []
+    chi2_ext_summary = []
+    
     model0 = deepcopy(f.model)
-    print('0 model chi2', f.resids.chi2)
-    print('0 model chi2_ext', pint.residuals.Residuals(t_others_phases[-1], f.model, track_mode="use_pulse_numbers").chi2)
+    
+    chi2_summary.append(f.resids.chi2)
+    chi2_ext_summary.append(pint.residuals.Residuals(t_others_phases[-1], f.model, track_mode="use_pulse_numbers").chi2)
     
     fig, ax = plt.subplots(constrained_layout=True)
     
     #t_phases[-1] is full toas with phase wrap
     #t_others_phases[-1] is selected toas plus closest group with phase wrap
     for i in range(len(rmods)):
-        print('chi2',pint.residuals.Residuals(t_phases[-1], rmods[i], track_mode="use_pulse_numbers").chi2)
-        print('chi2 ext', pint.residuals.Residuals(t_others_phases[-1], rmods[i], track_mode="use_pulse_numbers").chi2)
+        chi2_summary.append(pint.residuals.Residuals(t_phases[-1], rmods[i], track_mode="use_pulse_numbers").chi2)
+        chi2_ext_summary.append(pint.residuals.Residuals(t_others_phases[-1], rmods[i], track_mode="use_pulse_numbers").chi2)
         ax.plot(f_toas, rss[i], '-k', alpha=0.6)
         
+    #print summary of chi squared values
+    print("RANDOM MODEL SUMMARY:")
+    print("chi2 median on fit TOAs:", np.median(chi2_summary))
+    print("chi2 median on fit TOAs plus closest group:", np.median(chi2_ext_summary))
+    print("chi2 stdev on fit TOAs:", np.std(chi2_summary))
+    print("chi2 stdev on fit TOAs plus closest group:", np.std(chi2_ext_summary))
+        
+    
     #plot post fit residuals with error bars
     xt = t_phases[-1].get_mjds()
     ax.errorbar(xt.value,
@@ -650,7 +662,7 @@ def plot_wraps(f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, w
     secaxy.set_ylabel("residuals (phase)")
                     
     #save the image in alg_saves with the iteration and wrap number
-    plt.savefig('./alg_saves4/%s/%s_%03d_P%03d.png'%(sys_name, sys_name, iteration, wrap), overwrite=True)
+    plt.savefig('./alg_saves/%s/%s_%03d_P%03d.png'%(sys_name, sys_name, iteration, wrap), overwrite=True)
     plt.close()
 
     
@@ -701,7 +713,7 @@ def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, 
     secaxy = ax.secondary_yaxis('right', functions=(us_to_phase, phase_to_us))
     secaxy.set_ylabel("residuals (phase)")
     
-    plt.savefig('./alg_saves4/%s/%s_%03d.png'%(sys_name, sys_name, iteration), overwrite=True)
+    plt.savefig('./alg_saves/%s/%s_%03d.png'%(sys_name, sys_name, iteration), overwrite=True)
     plt.close()
 
 
@@ -859,8 +871,8 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs):
     last_mask = deepcopy(mask)
     
     #write these to a par, tim and txt file to be saved and reloaded
-    par_pntr = open('./alg_saves4/'+sys_name+'/'+sys_name+'_'+str(iteration)+'.par','w')
-    mask_pntr = open('./alg_saves4/'+sys_name+'/'+sys_name+'_'+str(iteration)+'.csv','w')
+    par_pntr = open('./alg_saves/'+sys_name+'/'+sys_name+'_'+str(iteration)+'.par','w')
+    mask_pntr = open('./alg_saves/'+sys_name+'/'+sys_name+'_'+str(iteration)+'.csv','w')
     par_pntr.write(m.as_parfile())
 
     mask_string = ''
@@ -869,7 +881,7 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs):
     
     mask_pntr.write(mask_string)#list to string
     
-    base_TOAs.write_TOA_file('./alg_saves4/'+sys_name+'/'+sys_name+'_'+str(iteration)+'.tim', format="TEMPO2")
+    base_TOAs.write_TOA_file('./alg_saves/'+sys_name+'/'+sys_name+'_'+str(iteration)+'.tim', format="TEMPO2")
     
     par_pntr.close()
     mask_pntr.close()
@@ -976,12 +988,12 @@ def main(argv=None):
     set_F1_lim(args, parfile)
     
     #check that there is a directory to save the algorithm state in
-    if not os.path.exists('alg_saves4'):
-        os.mkdir('alg_saves4')
+    if not os.path.exists('alg_saves'):
+        os.mkdir('alg_saves')
 
     #checks there is a directory specific to the system in alg_saves
-    if not os.path.exists('alg_saves4/'+sys_name):
-        os.mkdir('alg_saves4/'+sys_name)
+    if not os.path.exists('alg_saves/'+sys_name):
+        os.mkdir('alg_saves/'+sys_name)
 
 
     for mask in starting_points(t, start_type):
@@ -1179,19 +1191,31 @@ def main(argv=None):
                     except:
                         print("an error occued while trying to do polynomial extrapolation. Continuing on")
 
+
+                chi2_summary  = []
+                chi2_ext_summary = []
+                
                 #calculate chi2 and reduced chi2 for base model
                 model0 = deepcopy(f.model)
-                print('0 model chi2', f.resids.chi2)
-                print('0 model chi2_ext', pint.residuals.Residuals(t_others, f.model).chi2)
+                chi2_summary.append(f.resids.chi2)
+                chi2_ext_summary.append(pint.residuals.Residuals(t_others, f.model).chi2)
                 
                 fig, ax = plt.subplots(constrained_layout=True)
     
                 #calculate chi2 and reduced chi2 for the random models
                 for i in range(len(rmods)):
-                    print('chi2',pint.residuals.Residuals(t, rmods[i]).chi2)
-                    print('chi2 ext', pint.residuals.Residuals(t_others, rmods[i]).chi2)
+                    chi2_summary.append(pint.residuals.Residuals(t, rmods[i]).chi2)
+                    chi2_ext_summary.append(pint.residuals.Residuals(t_others, rmods[i]).chi2)
                     ax.plot(f_toas, rss[i], '-k', alpha=0.6)
-                    
+                
+                #print summary of chi squared values
+                print("RANDOM MODEL SUMMARY:")
+                print("chi2 median on fit TOAs:", np.median(chi2_summary))
+                print("chi2 median on fit TOAs plus closest group:", np.median(chi2_ext_summary))
+                print("chi2 stdev on fit TOAs:", np.std(chi2_summary))
+                print("chi2 stdev on fit TOAs plus closest group:", np.std(chi2_ext_summary))
+
+
                 print("Current Fit Params:",f.get_fitparams().keys())
                 print("nTOAs (fit):",t.ntoas)
                 
@@ -1275,15 +1299,15 @@ def main(argv=None):
             plt.show()
         
         else:
-            plt.savefig('./alg_saves4/%s/%s_final.png'%(sys_name, sys_name), overwrite=True)
+            plt.savefig('./alg_saves/%s/%s_final.png'%(sys_name, sys_name), overwrite=True)
             plt.clf()
         
         #if success, stop trying and end program
         if pint.residuals.Residuals(t, f.model).chi2_reduced < 10:#make this settable
             print("SUCCESS! A solution was found with reduced chi2 of",pint.residuals.Residuals(t, f.model).chi2_reduced, "after", \
-                iteration, "iterations and a runtime of") 
-            print("The input parameters for this fit were:", args)
-            print("The final fit parameters are:", f.get_fitparams().keys())
+                iteration, "iterations") 
+            print("The input parameters for this fit were:\n", args)
+            print("\nThe final fit parameters are:", f.get_fitparams().keys())
             print("starting points:", starting_TOAs.get_groups(), starting_TOAs.get_mjds())
             print("Removed TOAs:", bad_mjds)
             break
