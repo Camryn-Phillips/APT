@@ -11,41 +11,61 @@ from copy import deepcopy
 
 def write_solfile(args, sol_name):
     '''docstring'''
+
     solfile = open('./fake_data/'+sol_name, 'w')
+    
     h = r.randint(0,24)
     m = r.randint(0,60)
     s = r.uniform(0,60)
+    
     #randomly assign values in appropriate ranges to RAJ
-    if args.RAJ_value == None:              
+    if (
+        args.RAJ_value == None
+    ):              
         raj = (str(h)+':'+str(m)+':'+str(s),args.RAJ_error)
     else:
         raj = (args.RAJ_value, args.RAJ_error)
+    
     #not just -90 to 90, has to be spherically symmetric, see 
     d = int((np.arcsin(2.*r.random() - 1.))*180./np.pi)
     arcm = r.randint(0,60)
     arcs = r.uniform(0,60)
+    
     #randomly assign values in appropriate ranges to DECJ
-    if args.DECJ_value == None:
+    if (
+        args.DECJ_value == None
+    ):
         decj = (str(d)+':'+str(arcm)+':'+str(arcs),args.DECJ_error)
     else:
         decj = (args.DECJ_value, args.DECJ_error)
+    
     #randomly assign values in apporiate range to F0 (100-800 Hz is millisecond pulsar range. Slow pulsars are 2-20 Hz range)
-    if args.F0_value == None:    
+    if (
+        args.F0_value == None
+    ):    
         f0 = (r.uniform(300, 800), args.F0_error)
     else:
         f0 = (args.F0_value, args.F0_error)
         
     #assign F1 based on general ranges in F-Fdot diagram (see ****)
-    if f0[0] < 1000 and f0[0] > 100:
+    if (
+        f0[0] < 1000 and f0[0] > 100
+    ):
         f1 = (10**(r.randint(-16,-14)), args.F1_error)
-    elif f0[0] < 100 and f0[0] > 10:
+    elif (
+        f0[0] < 100 and f0[0] > 10
+    ):
         f1 = (10**(r.randint(-16,-15)), args.F1_error)
-    elif f0[0] < 10 and f0[0] > 0.1:
+    elif (
+        f0[0] < 10 and f0[0] > 0.1
+    ):
         f1 = (10**(r.randint(-16,-11)),  args.F1_error)
     else:
         f1 = (10**(-16),  args.F1_error)
         
-    if type(args.F1_value) == float:
+    if (
+        type(args.F1_value) == float
+    ):
         f1 = (args.F1_value, args.F1_error)
     
     #assign DM param to be zero
@@ -85,6 +105,7 @@ def write_timfile(args, f0_save, tim_name, sol_name):
     density = r.uniform(args.density_range[0], args.density_range[1])
     duration = int(r.uniform(args.span[0], args.span[1]))
     ntoas = int(duration/density)
+    
     #1 observation is a set of anywhere from 1 to 8 consecutive toas
     #2 obs on 1 day, then obs 3 of 5 days, then 2 of next 10 days, then 1 a week later, then monthly
     #n_obs per timespan  2, 2-4, 2-4, 1-3, monthly until end
@@ -98,18 +119,24 @@ def write_timfile(args, f0_save, tim_name, sol_name):
     
     #make a mask which only allows TOAs to exist on those spans specified by the distances above
     mask = np.zeros(ntoas, dtype = bool)
+    
     i = 0
     count = 0
+    
     for distance in distances:
         count += 1
-        if count <= 2:
+        if (
+            count <= 2
+        ):
             #for first two observations, allow 3 to 8 TOAs per observation
             obs_length = r.randint(3,8)
             ntoa2 = obs_length
         else:
             obs_length = r.randint(1,8)
+        
         mask[i:i+obs_length] = ~mask[i:i+obs_length]
         i = i + obs_length + distance
+    
     #once distance list is used up, continue adding observations ~monthly until end of TOAs is reached
     while i < ntoas:
         obs_length = r.randint(1,8)
@@ -119,10 +146,13 @@ def write_timfile(args, f0_save, tim_name, sol_name):
             
     #maximum possible residual based on F0
     max_resid = (0.5/f0_save)*10**6
+    
     #randomly chosen error for TOAs
     percent = r.uniform(0.0003,0.03)
+    
     #error = percent*max resid, scale error relevant to possible residual difference
     error = int(max_resid * percent)
+    
     #startmjd = 56000, always
     
     #run zima with the parameters given, this may take a long time is the number of TOAs is high (i.e. over 20000)
@@ -136,36 +166,53 @@ def write_timfile(args, f0_save, tim_name, sol_name):
     #reset the TOA table group column
     print(t.table['groups'][:10])
     print("groups" in t.table.columns)
+    
     del t.table['groups']
+    
     print("groups" in t.table.columns)
+    
     t.table['groups'] = t.get_groups()
+    
     print(t.table['groups'][:10])
+    
     #save timfile
     t.write_TOA_file('./fake_data/'+tim_name, format = 'TEMPO2')
     return ntoa2, density
-    
+
+
 def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, density):
     '''docstring'''
+    
     #write parfile as a skewed version of the solution file, the same way real data is a corrupted or blurred version of the "true" nature of the distant pulsar
     parfile = open('./fake_data/'+par_name, 'w')
+    
     #read in argument blurring factors, or chose them from scaled gaussian distributions
-    if args.rblur != None:
+    if (
+        args.rblur != None
+    ):
         rblur = args.rblur
     else:
         rblur = args.rblur_coeff*r.standard_normal()
+    
     #blur RAJ by the amount rblur (there is a nonzero chance this makes the value for RAJ unusable, i.e. RAJ = 6:2:89.9, Rblur=+1.1 --> RAJ=6:2:91.0. just rerun the script)
     raj = (str(h)+':'+str(m)+':'+str(s+rblur),0.01)
     
-    if args.dblur != None:
+    if (
+        args.dblur != None
+    ):
         dblur = args.dblur
     else:
         dblur = args.dblur_coeff*r.standard_normal()
+    
     #blur DECJ by the amount dblur (see note above about possible unusbale values)
     decj = (str(d)+':'+str(arcm)+':'+str(arcs+dblur),0.01)
     
     #the length of the observation
     Tobs = ((ntoa2*density)*24*60*60)
-    if args.f0blur != None:
+    
+    if (
+        args.f0blur != None
+    ):
         f0blur = args.f0blur
     else:
         #f0blur = (~0.1)/length_obs(in s)
@@ -175,7 +222,9 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     f0 = (f0[0]+f0blur, 0.000001)
     
     #blur F1 if given a blurring factor, otherwise set F1 to zero, as is the case in most starting parfiles
-    if args.f1blur != None:
+    if (
+        args.f1blur != None
+    ):
         f1 = (f1[0]+args.f1blur, 0.0)
     else:
         f1 = (0.0, 0.0)
@@ -339,19 +388,27 @@ def main(argv=None):
     #fake starting parfile - starting parfile smeared/dispersed by a random amount
     #save the files in fake_data folder
     
-    print(os.listdir('./fake_data/'))
+    #check that there is a directory to save the fake data in
+    if (
+        not os.path.exists('fake_data')
+    ):
+        os.mkdir('fake_data')
+        
     #determine highest number system from files in fake_data
     try:
-        maxnum = max([int(filename[:-4][5:]) for filename in os.listdir('./fake_data/')])
+        maxnum = max([int(filename[:-4][5:]) for filename in os.listdir('./fake_data/') if 'fake' in filename])
     except ValueError:
-        #TODO: this error is also raised when max breaks, ie, not all the files are of the format ____#___ whatever
         maxnum = 0
         print('no files in the directory')
 
 
     iter = args.iter
+    
     for num in range(maxnum+1, maxnum+1+iter):
-        if args.name == None:
+        
+        if (
+            args.name == None
+        ):
             sol_name = 'fake_'+str(num)+'.sol'
             par_name = 'fake_'+str(num)+'.par'
             tim_name = 'fake_'+str(num)+'.tim'
