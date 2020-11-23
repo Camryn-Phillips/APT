@@ -103,7 +103,7 @@ def starting_points(toas, start_type):
             mask_list.append(mask)
     
     #TODO: make 5 a settable param?
-    return mask_list[:5]
+    return mask_list[:2]
 
 
 def get_closest_group(all_toas, fit_toas, base_TOAs):
@@ -192,19 +192,19 @@ def Ftest_param(r_model, fitter, param_name):
     #Ftests close to zero mean the parameter addition is necessary, close to 1 the addition is unnecessary, 
     #and NaN means the fit got worse when the parameter was added
 
-    #if the Ftest returns NaN (fit got worse), iterate the fit until it improves to a max of 10 iterations. 
+    #if the Ftest returns NaN (fit got worse), iterate the fit until it improves to a max of 3 iterations. 
     #It may have gotten stuck in a local minima
     counter = 0
-    while np.isnan(Ftest_p) and counter < 10:
-        
+    
+    while not Ftest_p and counter < 3:
         counter += 1
         
         f_plus_p.fit_toas()
         m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model)
         
         #recalculate the Ftest
-        Ftest_p = ut.Ftest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
-    
+        Ftest_p = pint.utils.FTest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
+        
     #print the Ftest for the parameter and return the value of the Ftest
     print('Ftest'+param_name+':',Ftest_p)
     return Ftest_p
@@ -243,16 +243,15 @@ def Ftest_param_phases(r_model, fitter, param_name):
     #if the Ftest returns NaN (fit got worse), iterate the fit until it improves to a max of 10 iterations. 
     #It may have gotten stuck in a local minima    
     counter = 0
-    while np.isnan(Ftest_p) and counter < 10:
-    
+    while not Ftest_p and counter < 3:
         counter += 1
 
         f_plus_p.fit_toas()
         m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model, track_mode="use_pulse_numbers")
 
         #recalculate the Ftest
-        Ftest_p = ut.Ftest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
-    
+        Ftest_p = pint.utils.FTest(float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof)
+
     #print the Ftest for the parameter and return the value of the Ftest
     print('Ftest'+param_name+':',Ftest_p)
     return Ftest_p
@@ -768,7 +767,7 @@ def do_Ftests(t, m, args):
         if (
             span > 100*u.d
         ):
-            print("F1, RAJ, DECJ, and F1 have all been added")
+            print("F0, RAJ, DECJ, and F1 have all been added")
     
     #if smallest Ftest of those calculated is less than the given limit, add that parameter to the model. Otherwise add no parameters
     elif (
@@ -913,9 +912,9 @@ def main(argv=None):
     )
     parser.add_argument("--redge_multiplier", help="scale factor for how far to plot predictive models to the right of fit points", type=float, default=3.0
     )
-    parser.add_argument("--RAJ_lim", help="minimum time span before Right Ascension (RAJ) can be fit for", type=float, default=7.0
+    parser.add_argument("--RAJ_lim", help="minimum time span before Right Ascension (RAJ) can be fit for", type=float, default=1.5
     )
-    parser.add_argument("--DECJ_lim", help="minimum time span before Declination (DECJ) can be fit for", type=float, default=30.0
+    parser.add_argument("--DECJ_lim", help="minimum time span before Declination (DECJ) can be fit for", type=float, default=2.0
     )
     parser.add_argument("--F1_lim", help="minimum time span before Spindown (F1) can be fit for (default = time for F1 to change residuals by 0.35phase)", type=float, default=None
     )
