@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import os
 import csv 
 import operator
-
+import time
 
 __all__ = ["main"]
 
@@ -1306,10 +1306,13 @@ def main(argv=None):
             print("SUCCESS! A solution was found with reduced chi2 of",pint.residuals.Residuals(t, f.model).chi2_reduced, "after", \
                 iteration, "iterations") 
             print("The input parameters for this fit were:\n", args)
-            print("\nThe final fit parameters are:", f.get_fitparams().keys())
-            print("starting points:", starting_TOAs.get_groups(), starting_TOAs.get_mjds())
-            print("Removed TOAs:", bad_mjds)
+            print("\nThe final fit parameters are:", [key for key in f.get_fitparams().keys()])
+            print("starting points (groups):\n", starting_TOAs.get_groups())
+            print("starting points (MJDs):", starting_TOAs.get_mjds())
+            print("TOAs Removed (MJD):", bad_mjds)
             break
             
 if __name__ == '__main__':
+    start_time = time.time()
     main()
+    print("Final Runtime (including plots):", time.time() - start_time, "seconds, or",  (time.time() - start_time)/60., "minutes")
