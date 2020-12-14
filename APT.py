@@ -7,7 +7,7 @@ import pint.fitter
 import pint.residuals
 import pint.utils
 import pint.models.model_builder as mb
-import pint.random_models
+#import pint.random_models
 from pint.phase import Phase
 from copy import deepcopy
 from collections import OrderedDict
@@ -21,6 +21,145 @@ import operator
 import time
 
 __all__ = ["main"]
+
+def make_fake_toas(startMJD, endMJD, ntoas, model, freq=1400, obs="GBT"):
+    """Make evenly spaced toas with residuals = 0 and  without errors
+    
+    might be able to do different frequencies if fed an array of frequencies,
+    only works with one observatory at a time
+    
+    Parameters
+    ----------
+    startMJD
+    starting MJD for fake toas
+    endMJD
+    ending MJD for fake toas
+    ntoas
+    number of fake toas to create between startMJD and endMJD
+    model
+    current model
+    freq : float, optional
+    frequency of the fake toas, default 1400
+    obs : str, optional
+    observatory for fake toas, default GBT
+    
+    Returns
+    -------
+    TOAs
+    object with evenly spaced toas spanning given start and end MJD with
+    ntoas toas, without errors
+    """
+    #copied from PINT to remove bug 
+    # TODO:make all variables Quantity objects
+    # TODO: freq default to inf
+    
+    def get_freq_array(bfv, ntoas):
+        
+        freq = np.zeros(ntoas)
+        num_freqs = len(bfv)
+        
+        for ii, fv in enumerate(bfv):
+            freq[ii::num_freqs] = fv
+        
+        return freq
+    
+    times = (
+        np.linspace(np.longdouble(startMJD) * u.d, np.longdouble(endMJD) * u.d, ntoas)
+        * u.day
+    )
+    freq_array = get_freq_array(np.atleast_1d(freq) * u.MHz, len(times))
+    t1 = [
+        pint.toa.TOA(t.value, obs=obs, freq=f, scale=pint.toa.get_observatory(obs).timescale)
+        for t, f in zip(times, freq_array)
+    ]
+    
+    ts = pint.toa.TOAs(toalist=t1)
+    ts.compute_TDBs()
+    ts.compute_posvels()
+    ts.clock_corr_info.update(
+        {"include_bipm": False, "bipm_version": "BIPM2015", "include_gps": False}
+    )
+    
+    return ts
+
+def random_models(
+    fitter, rs_mean, ledge_multiplier=4, redge_multiplier=4, iter=1, npoints=100
+    ):
+    """Uses the covariance matrix to produce gaussian weighted random models.
+    
+    Returns fake toas for plotting and a list of the random models' phase resid objects.
+    rs_mean determines where in residual phase the lines are plotted,
+    edge_multipliers determine how far beyond the selected toas the random models are plotted.
+    This uses an approximate method based on the cov matrix, it doesn't use MCMC.
+    
+    Parameters
+    ----------
+    fitter
+    fitter object with model and toas to vary from
+    rs_mean
+    average phase residual for toas in fitter object, used to plot random models
+    ledge_multiplier
+    how far the lines will plot to the left in multiples of the fit toas span, default 4
+    redge_multiplier
+    how far the lines will plot to the right in multiples of the fit toas span, default 4
+    iter
+    how many random models will be computed, default 1
+    npoints
+    how many fake toas will be reated for the random lines, default 100
+    
+    Returns
+    -------
+    TOAs object containing the evenly spaced fake toas to plot the random lines with
+    list of residual objects for the random models (one residual object each)
+    """
+    params = fitter.get_fitparams_num()
+    mean_vector = params.values()
+    # remove the first column and row (absolute phase)
+    cov_matrix = (((fitter.covariance_matrix[1:]).T)[1:]).T
+    fac = fitter.fac[1:]
+    f_rand = deepcopy(fitter)
+    mrand = f_rand.model
+    # scale by fac
+    log.debug("errors", np.sqrt(np.diag(cov_matrix)))
+    log.debug("mean vector", mean_vector)
+    mean_vector = np.array(list(mean_vector)) * fac
+    cov_matrix = ((cov_matrix * fac).T * fac).T
+    
+    toa_mjds = fitter.toas.get_mjds()
+    minMJD, maxMJD = toa_mjds.min(), toa_mjds.max()
+    spanMJDs = maxMJD - minMJD
+    # ledge and redge _multiplier control how far the fake toas extend
+    # in either direction of the selected points
+    x = make_fake_toas(
+    minMJD - spanMJDs * ledge_multiplier,
+    maxMJD + spanMJDs * redge_multiplier,
+    npoints,
+    mrand,
+    )
+    x2 = make_fake_toas(minMJD, maxMJD, npoints, mrand)
+    
+    rss = []
+    random_models = []
+    for i in range(iter):
+        print('on iteration '+str(i+1))
+        # create a set of randomized parameters based on mean vector and covariance matrix
+        rparams_num = np.random.multivariate_normal(mean_vector, cov_matrix)
+        # scale params back to real units
+        for j in range(len(mean_vector)):
+            rparams_num[j] /= fac[j]
+        rparams = OrderedDict(zip(params.keys(), rparams_num))
+        # print("randomized parameters",rparams)
+        f_rand.set_params(rparams)
+        rs = mrand.phase(x, abs_phase=True) - fitter.model.phase(x, abs_phase=True)
+        rs2 = mrand.phase(x2, abs_phase=True) - fitter.model.phase(x2, abs_phase=True)
+        # from calc_phase_resids in residuals
+        rs -= Phase(0.0, rs2.frac.mean() - rs_mean)
+        # TODO: use units here!
+        rs = ((rs.int + rs.frac).value / fitter.model.F0.value) * 10 ** 6
+        rss.append(rs)
+        random_models.append(deepcopy(mrand))
+    
+    return x, rss, random_models
 
 def add_phase_wrap(toas, model, selected, phase):
     """
@@ -857,7 +996,7 @@ def calc_random_models(base_TOAs, f, t, args):
     rs_mean = pint.residuals.Residuals(base_TOAs_copy, f.model).phase_resids[selected].mean()
     
     #produce several (n_pred) random models given the fitter object and mean residual. return the random models, their residuals, and evenly spaced toas to plot against
-    f_toas, rss, rmods = pint.random_models.random_models(f, rs_mean, iter=args.n_pred, ledge_multiplier=args.ledge_multiplier, redge_multiplier=args.redge_multiplier)
+    f_toas, rss, rmods = random_models(f, rs_mean, iter=args.n_pred, ledge_multiplier=args.ledge_multiplier, redge_multiplier=args.redge_multiplier)
     
     return full_groups, selected, rs_mean, f_toas.get_mjds(), rss, rmods
 
