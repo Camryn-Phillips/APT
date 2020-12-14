@@ -368,7 +368,7 @@ def bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name
     y = p[0]*x**3 + p[1]*x**2 + p[2]*x + p[3]
     
     plt.plot(try_mjds, try_resids, 'b.')
-    plt.plot(bad_group_t.get_mjds()[index], bad_point_r[index], 'r.')
+    plt.plot(bad_group_t.get_mjds()[index], bad_group_r[index], 'r.')
     plt.plot(x, y, 'g-')
     plt.grid()
     plt.xlabel('MJD')
