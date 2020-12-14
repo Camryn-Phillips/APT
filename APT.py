@@ -1281,7 +1281,7 @@ def main(argv=None):
         
         #save as .fin
         fin_name = f.model.PSR.value + '.fin'
-        finfile = open('./fake_data/'+fin_name, 'w')
+        finfile = open(fin_name, 'w')
         finfile.write(f.model.as_parfile())
         finfile.close()
         
