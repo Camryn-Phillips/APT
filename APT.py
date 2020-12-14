@@ -103,7 +103,7 @@ def starting_points(toas, start_type):
             mask_list.append(mask)
     
     #TODO: make 5 a settable param?
-    return mask_list[:2]
+    return mask_list[:5]
 
 
 def get_closest_group(all_toas, fit_toas, base_TOAs):
@@ -325,23 +325,25 @@ def calc_resid_diff(closest_group, full_groups, base_TOAs, f, selected):
 
 
 def bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name, iteration, t_others, mask, skip_phases, bad_mjds):
-    #try polyfit on next n data, and if works (has resids < 0.02), just ignore it as a bad data point, and fit the next n data points instead
+    #try polyfit on next n data, and if works (has resids < 0.001), just ignore it as a bad data group, and fit the next n data groups instead
 
     if (
         dist > 0
     ):
         #mask next group to the right
-        try_mask = [True if group in t.get_groups() or group in np.arange(closest_group+1, closest_group+1+args.check_bp_n_TOAs) else False for group in full_groups]
+        try_mask = [True if group in t.get_groups() or group in np.arange(closest_group+1, closest_group+1+args.check_bp_n_groups) else False for group in full_groups]
     
     else:
         #mask next group to the left
-        try_mask = [True if group in t.get_groups() or group in np.arange(closest_group-args.check_bp_n_TOAs, closest_group) else False for group in full_groups]
-    
+        try_mask = [True if group in t.get_groups() or group in np.arange(closest_group-args.check_bp_n_groups, closest_group) else False for group in full_groups]
+
+    #try_t is the current subset of TOAs and the next args.check_bp_n_groups (default = 3) groups after the closest group, but WITHOUT the closest group included
     try_t = deepcopy(base_TOAs)
     try_t.select(try_mask)
     try_resids = np.float64(pint.residuals.Residuals(try_t, m).phase_resids)
     try_mjds = np.float64(try_t.get_mjds())
     
+    #try fitting the current subset and the next few groups with a polynomial while ignoring the closest group 
     p, resids, q1, q2, q3 = np.polyfit(try_mjds, try_resids, 3, full=True)
     
     if (
@@ -353,19 +355,20 @@ def bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name
         
     print('Bad Point Check residuals (phase)', resids)
     
-    #select the specific point in question
-    bad_point_t = deepcopy(base_TOAs)
-    bad_point_t.select(bad_point_t.get_mjds() >= min(try_t.get_mjds()))                
-    bad_point_t.select(bad_point_t.get_mjds() <= max(try_t.get_mjds()))
-    bad_point_r= pint.residuals.Residuals(bad_point_t, m).phase_resids
+    #right now, bad_group_t is the current subset, plus the closest group, plus the next args.check_bp_n_groups groups. This is for plotting purposes
+    bad_group_t = deepcopy(base_TOAs)
+    bad_group_t.select(bad_group_t.get_mjds() >= min(try_t.get_mjds()))                
+    bad_group_t.select(bad_group_t.get_mjds() <= max(try_t.get_mjds()))
+    bad_group_r= pint.residuals.Residuals(bad_group_t, m).phase_resids
     
-    index = np.where(bad_point_t.get_groups() == closest_group)
+    #define the index of the possibly bad data group 
+    index = np.where(bad_group_t.get_groups() == closest_group)
     
     x = np.arange(min(try_mjds)/u.d ,max(try_mjds)/u.d , 2)
     y = p[0]*x**3 + p[1]*x**2 + p[2]*x + p[3]
     
     plt.plot(try_mjds, try_resids, 'b.')
-    plt.plot(bad_point_t.get_mjds()[index], bad_point_r[index], 'r.')
+    plt.plot(bad_group_t.get_mjds()[index], bad_point_r[index], 'r.')
     plt.plot(x, y, 'g-')
     plt.grid()
     plt.xlabel('MJD')
@@ -381,10 +384,11 @@ def bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name
         plt.clf()
         
     if (
-        resids[0] < args.check_bp_max_chi2
+        #if the residuals of the polynomial fit are less than the threshold value (meaning the fit without the bad data group was very good), ignore the bad group
+        resids[0] < args.check_bp_max_resid
     ):
         print("Ignoring Bad Data Point, will not attempt phase wraps this iteration")
-        bad_mjds.append(bad_point_t.get_mjds()[index])
+        bad_mjds.append(bad_group_t.get_mjds()[index])
         t_others = deepcopy(try_t)
         mask = [True if group in t_others.get_groups() else False for group in full_groups]
         skip_phases = True
@@ -906,7 +910,7 @@ def main(argv=None):
     )
     parser.add_argument("--maskfile", help="csv file of bool array for fit points", type=str, default=None,
     )
-    parser.add_argument("--n_pred", help="Number of predictive models that should be calculated", type=int, default=10
+    parser.add_argument("--n_pred", help="Number of predictive models that should be calculated", type=int, default=12
     )
     parser.add_argument("--ledge_multiplier", help="scale factor for how far to plot predictive models to the left of fit points", type=float, default=1.0
     )
@@ -926,9 +930,9 @@ def main(argv=None):
     )
     parser.add_argument("--check_bp_min_diff", help="minimum residual difference to count as a questionable point to check", type=float, default=0.15
     )
-    parser.add_argument("--check_bp_max_chi2", help="maximum chi2 to exclude a bad data point based on polynomial fit", type=float, default=0.001
+    parser.add_argument("--check_bp_max_resid", help="maximum polynomial fit residual to exclude a bad data point", type=float, default=0.001
     )
-    parser.add_argument("--check_bp_n_TOAs", help="how many TOAs ahead of the questionable TOA to fit to confirm a bad data point", type=int, default=3
+    parser.add_argument("--check_bp_n_groups", help="how many groups ahead of the questionable group to fit to confirm a bad data point", type=int, default=3
     )
     parser.add_argument("--try_poly_extrap", help="whether to try to speed up the process by fitting ahead where polyfit confirms a clear trend", type=str, default='True'
     )
@@ -1096,13 +1100,13 @@ def main(argv=None):
             
             ngroups = max(t_others.get_groups())
             
-            #if difference in phase is >0.35 and check_bad_points is True, check if the TOA is a bad data point
+            #if difference in phase is >0.15 and check_bad_points is True, check if the TOA is a bad data point
             if (
                 np.abs(diff) > args.check_bp_min_diff and args.check_bad_points == True and ngroups > 10
             ):
                 skip_phases, t_others, mask, bad_mjds = bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name, iteration, t_others, mask, skip_phases, bad_mjds)
             
-            #if difference in phase is >0.35, and not a bad point, try phase wraps to see if point fits better wrapped
+            #if difference in phase is >0.15, and not a bad point, try phase wraps to see if point fits better wrapped
             if (
                 np.abs(diff) > args.check_bp_min_diff and skip_phases == False
             ):
