@@ -344,7 +344,7 @@ def bad_points(dist, t, closest_group, args, full_groups, base_TOAs, m, sys_name
     try_mjds = np.float64(try_t.get_mjds())
     
     #try fitting the current subset and the next few groups with a polynomial while ignoring the closest group 
-    p, resids, q1, q2, q3 = np.polyfit(try_mjds, try_resids, 3, full=True)
+    p, resids, q1, q2, q3 = np.polyfit((try_mjds/u.d).to_value(u.dimensionless_unscaled), try_resids, 3, full=True)
     
     if (
         resids.size == 0
@@ -462,8 +462,8 @@ def poly_extrap1(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     try_resids = np.float64(pint.residuals.Residuals(try_t, m).phase_resids)
     try_mjds = np.float64(try_t.get_mjds())
     
-    p, resids, q1, q2, q3 = np.polyfit(try_mjds, try_resids, 3, full=True)
-    
+    p, resids, q1, q2, q3 = np.polyfit((try_mjds/u.d).to_value(u.dimensionless_unscaled), try_resids, 3, full=True)
+        
     if (
         resids.size == 0
     ):
@@ -515,7 +515,7 @@ def poly_extrap2(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     try_resids2 = np.float64(pint.residuals.Residuals(try_t2, m).phase_resids)
     try_mjds2 = np.float64(try_t2.get_mjds())
     
-    p, resids2, q1, q2, q3 = np.polyfit(try_mjds2, try_resids2, 3, full=True)
+    p, resids2, q1, q2, q3 = np.polyfit((try_mjds2/u.d).to_value(u.dimensionless_unscaled), try_resids2, 3, full=True)
     
     if (
        resids2.size == 0
@@ -567,7 +567,7 @@ def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     try_resids3 = np.float64(pint.residuals.Residuals(try_t3, m).phase_resids)
     try_mjds3 = np.float64(try_t3.get_mjds())
     
-    p, resids3, q1, q2, q3 = np.polyfit(try_mjds3, try_resids3, 3, full=True)
+    p, resids3, q1, q2, q3 = np.polyfit((try_mjds3/u.d).to_value(u.dimensionless_unscaled), try_resids3, 3, full=True)
     
     if (
         resids3.size == 0
