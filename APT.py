@@ -1004,6 +1004,22 @@ def main(argv=None):
         # read in the initial model
         m = mb.get_model(parfile)
         
+        #check for extraneous parameters such as DM which will ruin fit
+        if (
+            "DM" in m.params and getattr(m, "DM").frozen == False
+        ):
+            print("WARNING: APT only fits for F0, RAJ, DECJ, and F1, not DM. Please turn off DM in the parfile, and try again.")
+            break
+        
+        #TODO: add this in when 0.8 comes out and get_params_dict is available
+        #for parameter in m.params:
+        #    print(parameter)
+        #    if (
+        #        parameter not in ["FO", "RAJ", "DECJ", "F1"]
+        #    ):
+        #        print("WARNING: APT only fits for F0, RAJ, DECJ, and F1. All other parameters should be turned off. Turning off parameter ", parameter)
+        #        getattr(m, parameter).frozen = True
+        
         # Read in the TOAs and compute ther pulse numbers
         t = pint.toa.get_TOAs(timfile)
                 
