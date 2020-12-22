@@ -527,7 +527,7 @@ def poly_extrap2(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     print("PE residuals span 2 (phase)", resids2)
 
     if (
-        args.plot_ploy_extrap == True
+        args.plot_poly_extrap == True
     ):
         x = np.arange(min(try_mjds2)/u.d ,max(try_mjds2)/u.d , 2)
         y = p[0]*x**3 + p[1]*x**2 + p[2]*x + p[3]
