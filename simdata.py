@@ -303,8 +303,6 @@ def main(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser(description="PINT tool for simulating TOAs")
-    parser.add_argument("--parfile", help="par file to read model from")
-    parser.add_argument("--timfile", help="tim file to read toas from")
     parser.add_argument(
         "--iter",
         help="number of pulsar systems to produce",
