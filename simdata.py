@@ -182,16 +182,16 @@ def write_timfile(args, f0_save, tim_name, sol_name):
     t.table = t.table[mask].group_by("obs")
 
     # reset the TOA table group column
-    print(t.table["groups"][:10])
-    print("groups" in t.table.columns)
+    print(t.table["clusters"][:10])
+    print("clsuters" in t.table.columns)
 
-    del t.table["groups"]
+    del t.table["clusters"]
 
-    print("groups" in t.table.columns)
+    print("clusters" in t.table.columns)
 
-    t.table["groups"] = t.get_groups()
+    t.table["clusters"] = t.get_clusters()
 
-    print(t.table["groups"][:10])
+    print(t.table["clusters"][:10])
 
     # save timfile
     t.write_TOA_file("./fake_data/" + tim_name, format="TEMPO2")
