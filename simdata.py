@@ -7,6 +7,7 @@ import numpy.random as r
 import numpy as np
 import astropy.units as u
 from copy import deepcopy
+import socket
 
 
 def write_solfile(args, sol_name):
@@ -449,11 +450,22 @@ def main(argv=None):
     # want fake data in data1 folder
 
     original_path = os.getcwd()
-    while not os.path.exists("data1/people"):
-        os.chdir("..")
-    os.chdir("data1/people/jdtaylor")
-    if not os.path.exists("fake_data") and os.getcwd().split("/")[-1] == "jdtaylor":
-        os.mkdir("fake_data")
+    if socket.gethostname() == "nimrod":
+        while not os.path.exists("data1/people"):
+            os.chdir("..")
+        os.chdir("data1/people/jdtaylor")
+        if not os.path.exists("fake_data") and os.getcwd().split("/")[-1] == "jdtaylor":
+            os.mkdir("fake_data")
+
+    # the path above is not in the fitzroy station
+    # fake data on the fitzroy host should be deleted as soon as reasonable
+    elif socket.gethostname() == "fitzroy":
+        os.chdir("/users/jdtaylor/Jackson/")
+        if not os.path.exists("fake_data"):
+            os.mkdir("fake_data")
+    else:
+        if not os.path.exists("fake_data"):
+            os.mkdir("fake_data")
 
     # determine highest number system from files in fake_data
     try:
