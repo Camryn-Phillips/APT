@@ -150,7 +150,7 @@ def write_timfile(args, f0_save, tim_name, sol_name):
 
     # startmjd = 56000, always
 
-    # run zima with the parameters given, this may take a long time is the number of TOAs is high (i.e. over 20000)
+    # run zima with the parameters given, this may take a long time if the number of TOAs is high (i.e. over 20000)
     print(
         "zima ./fake_data/"
         + sol_name
@@ -446,7 +446,13 @@ def main(argv=None):
     # save the files in fake_data folder
 
     # check that there is a directory to save the fake data in
-    if not os.path.exists("fake_data"):
+    # want fake data in data1 folder
+
+    original_path = os.getcwd()
+    while not os.path.exists("data1/people"):
+        os.chdir("..")
+    os.chdir("data1/people/jdtaylor")
+    if not os.path.exists("fake_data") and os.getcwd().split("/")[-1] == "jdtaylor":
         os.mkdir("fake_data")
 
     # determine highest number system from files in fake_data
@@ -485,6 +491,7 @@ def main(argv=None):
         write_parfile(
             args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, density
         )
+        os.chdir(original_path)
 
 
 if __name__ == "__main__":
