@@ -8,6 +8,24 @@ import numpy as np
 import astropy.units as u
 from copy import deepcopy
 import socket
+from astropy.time import TimeDelta
+import sys
+import pint.logging
+from loguru import logger as log
+print('test')
+
+log.remove()
+log.add(
+    sys.stderr,
+    level="WARNING",
+    colorize=True,
+    format=pint.logging.format,
+    filter=pint.logging.LogFilter(),
+)
+
+import pint.fitter
+import pint.simulation
+import pint.residuals
 
 
 def write_solfile(args, sol_name):
@@ -60,6 +78,8 @@ def write_solfile(args, sol_name):
     if type(args.F1_value) == float:
         f1 = (args.F1_value, args.F1_error)
 
+    f1 = (-f1[0], f1[0])
+
     # assign DM param to be zero
     dm = (0.0, 0.0)
 
@@ -89,7 +109,7 @@ def write_solfile(args, sol_name):
     return f0_save, h, m, s, d, arcm, arcs, f0, f1, dm
 
 
-def write_timfile(args, f0_save, tim_name, sol_name):
+def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     """
     write a timfile with simulated TOA data
 
@@ -152,40 +172,33 @@ def write_timfile(args, f0_save, tim_name, sol_name):
     # startmjd = 56000, always
 
     # run zima with the parameters given, this may take a long time if the number of TOAs is high (i.e. over 20000)
-    print(
-        "zima ./fake_data/"
-        + sol_name
-        + " ./fake_data/"
-        + tim_name
-        + " --ntoa "
-        + str(ntoas)
-        + " --duration "
-        + str(duration)
-        + " --error "
-        + str(error)
-    )
-    os.system(
-        "zima ./fake_data/"
-        + sol_name
-        + " ./fake_data/"
-        + tim_name
-        + " --ntoa "
-        + str(ntoas)
-        + " --duration "
-        + str(duration)
-        + " --error "
-        + str(error)
+#     print(
+#         f"running the function zima with the following parameters ./fake_data/{sol_name} ./fake_data/{tim_name} \
+# --ntoa {ntoas} --duration {duration} --error {error} --addnoise True, and the rest are their default values"
+#     )
+
+    # os.system(
+    #     f"zima ./fake_data/{sol_name} ./fake_data/{tim_name} --ntoa {ntoas} --duration {duration} --error {error}"
+    # )
+    zima(
+        f"./fake_data/{sol_name}",
+        f"./fake_data/{tim_name}",
+        ntoa=ntoas,
+        duration=duration,
+        error=error,
+        addnoise=True,
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
     t = pint.toa.get_TOAs("./fake_data/" + tim_name)
     t.table = t.table[mask].group_by("obs")
 
-    # reset the TOA table group column
-    print(t.table["clusters"][:10])
-    print("clsuters" in t.table.columns)
+    # print(t.table) # "clusters" has not been added yet, I commented out these lines, I do not think any functionality is omitted
+    # # reset the TOA table group column
+    # print("clusters" in t.table.columns)
+    # print(t.table["clusters"][:10])
 
-    del t.table["clusters"]
+    # del t.table["clusters"]
 
     print("clusters" in t.table.columns)
 
@@ -195,6 +208,19 @@ def write_timfile(args, f0_save, tim_name, sol_name):
 
     # save timfile
     t.write_TOA_file("./fake_data/" + tim_name, format="TEMPO2")
+
+    if not pulsar_number_column:
+        with open(f"./fake_data/{tim_name}") as file:
+            contents = file.read().split("\n")
+
+        for i, line in enumerate(contents):
+            contents[i] = contents[i][0:50]
+            pass
+
+        with open(f"./fake_data/{tim_name}", "w") as file:
+            for line in contents:
+                file.write(f"{line}\n")
+
     return ntoa2, density
 
 
@@ -303,8 +329,86 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     # end write parfile
 
 
+def zima(
+    parfile,
+    timfile,
+    inputtim: str = None,
+    startMJD: float = 56000.0,
+    ntoa: int = 100,
+    duration: float = 400.0,
+    obs: str = "GBT",
+    freq: float = 1400.0,
+    error: float = 1.0,
+    addnoise: bool = False,
+    fuzzdays: float = 0.0,
+    plot: bool = False,
+    format: str = "TEMPO2",
+    loglevel: str = pint.logging.script_level,
+):
+    log.remove()
+    log.add(
+        sys.stderr,
+        level=loglevel,
+        colorize=True,
+        format=pint.logging.format,
+        filter=pint.logging.LogFilter(),
+    )
+
+    log.info("Reading model from {0}".format(parfile))
+    m = pint.models.get_model(parfile)
+
+    out_format = format
+    error = error * u.microsecond
+
+    if inputtim is None:
+        log.info("Generating uniformly spaced TOAs")
+        ts = pint.simulation.make_fake_toas_uniform(
+            startMJD=startMJD,
+            endMJD=startMJD + duration,
+            ntoas=ntoa,
+            model=m,
+            obs=obs,
+            error=error,
+            freq=np.atleast_1d(freq) * u.MHz,
+            fuzz=fuzzdays * u.d,
+            add_noise=addnoise,
+        )
+    else:
+        log.info("Reading initial TOAs from {0}".format(inputtim))
+        ts = pint.simulation.make_fake_toas_fromtim(
+            inputtim,
+            model=m,
+            obs=obs,
+            error=error,
+            freq=np.atleast_1d(freq) * u.MHz,
+            fuzz=fuzzdays * u.d,
+            add_noise=addnoise,
+        )
+
+    # Write TOAs to a file
+    ts.write_TOA_file(timfile, name="fake", format=out_format)
+
+    if plot:
+        # This should be a very boring plot with all residuals flat at 0.0!
+        import matplotlib.pyplot as plt
+        from astropy.visualization import quantity_support
+
+        quantity_support()
+
+        r = pint.residuals.Residuals(ts, m)
+        plt.errorbar(
+            ts.get_mjds(),
+            r.calc_time_resids(calctype="taylor").to(u.us),
+            yerr=ts.get_errors().to(u.us),
+            fmt=".",
+        )
+        plt.xlabel("MJD")
+        plt.ylabel("Residual (us)")
+        plt.grid(True)
+        plt.show()
+
+
 def main(argv=None):
-    import sys
     import argparse
 
     parser = argparse.ArgumentParser(description="PINT tool for simulating TOAs")
@@ -457,8 +561,8 @@ def main(argv=None):
         if not os.path.exists("fake_data") and os.getcwd().split("/")[-1] == "jdtaylor":
             os.mkdir("fake_data")
 
-    # the path above is not in the fitzroy station
-    # fake data on the fitzroy host should be deleted as soon as reasonable
+    # The path above is not in the fitzroy station
+    # Fake data on the fitzroy host should be deleted as soon as reasonable
     elif socket.gethostname() == "fitzroy":
         os.chdir("/users/jdtaylor/Jackson/")
         if not os.path.exists("fake_data"):
@@ -469,16 +573,28 @@ def main(argv=None):
 
     # determine highest number system from files in fake_data
     try:
-        maxnum = max(
-            [
-                int(filename[:-4][5:])
-                for filename in os.listdir("./fake_data/")
-                if "fake" in filename
-            ]
-        )
+        temp_list = []
+        for filename in os.listdir("./fake_data/"):
+            if (
+                "fake" in filename
+                and (".tim" in filename[-4:] or ".par" in filename[-4:])
+                and "#" not in filename
+            ):
+                temp_list.append(int(filename[:-4][5:]))
+
+        maxnum = max(temp_list)
+        # maxnum = max(
+        #     [
+        #         int(filename[:-4][5:])
+        #         for filename in os.listdir("./fake_data/")
+        #         if ("fake" in filename and (".tim" in filename[-4:] or ".par" in filename[-4:]))
+        #     ]
+        # )
     except ValueError:
         maxnum = 0
         print("no files in the directory")
+        print(os.getcwd())
+        print(os.listdir("fake_data"))
 
     iter = args.iter
 
@@ -497,7 +613,9 @@ def main(argv=None):
         f0_save, h, m, s, d, arcm, arcs, f0, f1, dm = write_solfile(args, sol_name)
 
         # wrie timfile
-        ntoa2, density = write_timfile(args, f0_save, tim_name, sol_name)
+        ntoa2, density = write_timfile(
+            args, f0_save, tim_name, sol_name, pulsar_number_column=False
+        )
 
         # write parfile
         write_parfile(
@@ -507,4 +625,9 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    import time
+
+    time1 = time.monotonic()
     main()
+    time2 = time.monotonic()
+    print(f"Took {time2 - time1} seconds ({(time2-time1) / 60} minutes)")
