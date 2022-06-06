@@ -12,7 +12,8 @@ from astropy.time import TimeDelta
 import sys
 import pint.logging
 from loguru import logger as log
-print('test')
+from pathlib import Path
+
 
 log.remove()
 log.add(
@@ -36,7 +37,7 @@ def write_solfile(args, sol_name):
     :param sol_name: name of the output .sol file
     """
 
-    solfile = open("./fake_data/" + sol_name, "w")
+    solfile = open(Path(f"./fake_data/{sol_name}"), "w")
 
     h = r.randint(0, 24)
     m = r.randint(0, 60)
@@ -190,7 +191,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
-    t = pint.toa.get_TOAs("./fake_data/" + tim_name)
+    t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
     t.table = t.table[mask].group_by("obs")
 
     # print(t.table) # "clusters" has not been added yet, I commented out these lines, I do not think any functionality is omitted
@@ -207,17 +208,16 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     print(t.table["clusters"][:10])
 
     # save timfile
-    t.write_TOA_file("./fake_data/" + tim_name, format="TEMPO2")
+    t.write_TOA_file(Path(f"./fake_data/{tim_name}"), format="TEMPO2")
 
     if not pulsar_number_column:
-        with open(f"./fake_data/{tim_name}") as file:
+        with open(Path(f"./fake_data/{tim_name}")) as file:
             contents = file.read().split("\n")
 
         for i, line in enumerate(contents):
             contents[i] = contents[i][0:50]
-            pass
 
-        with open(f"./fake_data/{tim_name}", "w") as file:
+        with open(Path(f"./fake_data/{tim_name}"), "w") as file:
             for line in contents:
                 file.write(f"{line}\n")
 
@@ -233,7 +233,7 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     """
 
     # write parfile as a skewed version of the solution file, the same way real data is a corrupted or blurred version of the "true" nature of the distant pulsar
-    parfile = open("./fake_data/" + par_name, "w")
+    parfile = open(Path(f"./fake_data/{par_name}"), "w")
 
     # randomly choose a FWHM for the telescope beam in arcseconds
     FWHM = r.uniform(120, 2400)
@@ -266,7 +266,8 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     m = int((raj_s - h * 60 * 60) / 60)
     s = (raj_s - h * 60 * 60) - m * 60
 
-    raj = (str(h) + ":" + str(m) + ":" + str(s), 0.01)
+    #raj = (str(h) + ":" + str(m) + ":" + str(s), 0.01)
+    raj = (f"{h}:{m}:{s}", 0.01)
 
     if args.dblur != None:
         dblur = args.dblur
@@ -285,7 +286,8 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     if arcs < 0:
         arcs = -arcs
 
-    decj = (str(d) + ":" + str(arcm) + ":" + str(arcs), 0.01)
+    #decj = (str(d) + ":" + str(arcm) + ":" + str(arcs), 0.01)
+    decj = (f"{d}:{arcm}:{arcs}", 0.01)
 
     # the length of the observation
     Tobs = (ntoa2 * density) * 24 * 60 * 60
@@ -314,16 +316,16 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     tzrsite = args.TZRSITE
 
     # write the parfile
-    parfile.write("PSR\t" + par_name[:-4] + "\n")
-    parfile.write("RAJ\t" + str(raj[0]) + "\t0\t" + str(raj[1]) + "\n")
-    parfile.write("DECJ\t" + str(decj[0]) + "\t0\t" + str(decj[1]) + "\n")
-    parfile.write("F0\t" + str(f0[0]) + "\t1\t" + str(f0[1]) + "\n")
-    parfile.write("F1\t" + str(f1[0]) + "\t\t\t0\t" + str(f1[1]) + "\n")
-    parfile.write("DM\t" + str(dm[0]) + "\t0\t" + str(dm[1]) + "\n")
-    parfile.write("PEPOCH\t" + str(pepoch) + "\n")
-    parfile.write("TZRMJD\t" + str(tzrmjd) + "\n")
-    parfile.write("TZRFRQ\t" + str(tzrfrq) + "\n")
-    parfile.write("TZRSITE\t" + tzrsite)
+    parfile.write(f"PSR\t{par_name[:-4]}\n")
+    parfile.write(f"RAJ\t{raj[0]}\t0\t{raj[1]}\n")
+    parfile.write(f"DECJ\t{decj[0]}\t0\t{decj[1]}\n")
+    parfile.write(f"F0\t{f0[0]}\t1\t{f0[1]}\n")
+    parfile.write(f"F1\t{f1[0]}\t\t\t0\t{f1[1]}\n")
+    parfile.write(f"DM\t{dm[0]}\t0\t{dm[1]}\n")
+    parfile.write(f"PEPOCH\t{pepoch}\n")
+    parfile.write(f"TZRMJD\t{tzrmjd}\n")
+    parfile.write(f"TZRFRQ\t{tzrfrq}\n")
+    parfile.write(f"TZRSITE\t {tzrsite}")
 
     parfile.close()
     # end write parfile
@@ -354,7 +356,7 @@ def zima(
         filter=pint.logging.LogFilter(),
     )
 
-    log.info("Reading model from {0}".format(parfile))
+    log.info(f"Reading model from {parfile}")
     m = pint.models.get_model(parfile)
 
     out_format = format
@@ -374,7 +376,7 @@ def zima(
             add_noise=addnoise,
         )
     else:
-        log.info("Reading initial TOAs from {0}".format(inputtim))
+        log.info(f"Reading initial TOAs from {inputtim}")
         ts = pint.simulation.make_fake_toas_fromtim(
             inputtim,
             model=m,
@@ -552,29 +554,29 @@ def main(argv=None):
 
     # check that there is a directory to save the fake data in
     # want fake data in data1 folder
-
+    fake_data = Path("./fake_data")
     original_path = os.getcwd()
     if socket.gethostname() == "nimrod":
-        while not os.path.exists("data1/people"):
+        while not os.path.exists(Path("data1/people")):
             os.chdir("..")
-        os.chdir("data1/people/jdtaylor")
-        if not os.path.exists("fake_data") and os.getcwd().split("/")[-1] == "jdtaylor":
-            os.mkdir("fake_data")
+        os.chdir(Path("data1/people/jdtaylor"))
+        if not fake_data.is_dir() and os.getcwd().split("/")[-1] == "jdtaylor":
+            fake_data.mkdir()
 
     # The path above is not in the fitzroy station
     # Fake data on the fitzroy host should be deleted as soon as reasonable
     elif socket.gethostname() == "fitzroy":
-        os.chdir("/users/jdtaylor/Jackson/")
-        if not os.path.exists("fake_data"):
-            os.mkdir("fake_data")
+        os.chdir(Path("/users/jdtaylor/Jackson/"))
+        if not fake_data.is_dir():
+            fake_data.mkdir()
     else:
-        if not os.path.exists("fake_data"):
-            os.mkdir("fake_data")
+        if not fake_data.is_dir():
+            fake_data.mkdir()
 
     # determine highest number system from files in fake_data
     try:
         temp_list = []
-        for filename in os.listdir("./fake_data/"):
+        for filename in os.listdir(Path("./fake_data/")):
             if (
                 "fake" in filename
                 and (".tim" in filename[-4:] or ".par" in filename[-4:])
@@ -583,13 +585,6 @@ def main(argv=None):
                 temp_list.append(int(filename[:-4][5:]))
 
         maxnum = max(temp_list)
-        # maxnum = max(
-        #     [
-        #         int(filename[:-4][5:])
-        #         for filename in os.listdir("./fake_data/")
-        #         if ("fake" in filename and (".tim" in filename[-4:] or ".par" in filename[-4:]))
-        #     ]
-        # )
     except ValueError:
         maxnum = 0
         print("no files in the directory")
@@ -601,13 +596,13 @@ def main(argv=None):
     for num in range(maxnum + 1, maxnum + 1 + iter):
 
         if args.name == None:
-            sol_name = "fake_" + str(num) + ".sol"
-            par_name = "fake_" + str(num) + ".par"
-            tim_name = "fake_" + str(num) + ".tim"
+            sol_name = f"fake_{num}.sol"
+            par_name = f"fake_{num}.par"
+            tim_name = f"fake_{num}.tim"
         else:
-            sol_name = args.name + ".sol"
-            par_name = args.name + ".par"
-            tim_name = args.name + ".tim"
+            sol_name = f"{args.name}.sol"
+            par_name = f"{args.name}.par"
+            tim_name = f"{args.name}.tim"
 
         # write solfile
         f0_save, h, m, s, d, arcm, arcs, f0, f1, dm = write_solfile(args, sol_name)
@@ -621,7 +616,7 @@ def main(argv=None):
         write_parfile(
             args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, density
         )
-        os.chdir(original_path)
+    os.chdir(original_path)
 
 
 if __name__ == "__main__":
