@@ -126,18 +126,18 @@ def get_closest_group(all_toas, fit_toas, base_TOAs):
     # reset all_toas
     all_toas = deepcopy(base_TOAs)
 
-    # return group number of closest group and distance to group (- = left, + = right), or None, None if all groups have been included
+    # return group number of closest group and distance to group (- = left, + = right), or None, None if all clusters have been included
     if d_left == None and d_right == None:
-        print("all groups have been included")
+        print("all clusters have been included")
         return None, None
 
     elif d_left == None or (d_right != None and d_right <= d_left):
         all_toas.select(all_toas.get_mjds() == right_dict[d_right])
-        return all_toas.table["groups"][0], d_right
+        return all_toas.table["clusters"][0], d_right
 
     else:
         all_toas.select(all_toas.get_mjds() == left_dict[d_left])
-        return all_toas.table["groups"][0], -d_left
+        return all_toas.table["clusters"][0], -d_left
 
 
 def Ftest_param(r_model, fitter, param_name):
@@ -273,10 +273,10 @@ def set_F1_lim(args, parfile):
 def readin_starting_points(mask, t, start_type, start, args):
     # if given starting points from command line, replace calculated starting points with given starting points (group numbers or mjd values)
 
-    groups = t.get_groups()
+    clusters = t.get_clusters()
 
-    if start_type == "groups":
-        mask = np.logical_or(groups == start[0], groups == start[1])
+    if start_type == "clusters":
+        mask = np.logical_or(clusters == start[0], clusters == start[1])
 
     elif start_type == "mjds":
         # TODO: program crashes if no MJDs in the range given
@@ -293,10 +293,10 @@ def readin_starting_points(mask, t, start_type, start, args):
     return mask
 
 
-def calc_resid_diff(closest_group, full_groups, base_TOAs, f, selected):
+def calc_resid_diff(closest_group, full_clusters, base_TOAs, f, selected):
     # create mask array for closest group (without fit toas)
     selected_closest = [
-        True if group == closest_group else False for group in full_groups
+        True if group == closest_group else False for group in full_clusters
     ]
 
     # calculate phase resid of last toa of the fit toas and first toa of the closest group.
@@ -307,7 +307,7 @@ def calc_resid_diff(closest_group, full_groups, base_TOAs, f, selected):
         selected_closest
     ][0]
 
-    # Use difference of edge points as difference between groups as a whole
+    # Use difference of edge points as difference between clusters as a whole
     diff = first_new_toa_phase - last_fit_toa_phase
 
     return selected_closest, diff
@@ -318,7 +318,7 @@ def bad_points(
     t,
     closest_group,
     args,
-    full_groups,
+    full_clusters,
     base_TOAs,
     m,
     sys_name,
@@ -328,36 +328,36 @@ def bad_points(
     skip_phases,
     bad_mjds,
 ):
-    # try polyfit on next n data, and if works (has resids < 0.001), just ignore it as a bad data group, and fit the next n data groups instead
+    # try polyfit on next n data, and if works (has resids < 0.001), just ignore it as a bad data group, and fit the next n data clusters instead
 
     if dist > 0:
         # mask next group to the right
         try_mask = [
             True
-            if group in t.get_groups()
+            if group in t.get_clusters()
             or group
-            in np.arange(closest_group + 1, closest_group + 1 + args.check_bp_n_groups)
+            in np.arange(closest_group + 1, closest_group + 1 + args.check_bp_n_clusters)
             else False
-            for group in full_groups
+            for group in full_clusters
         ]
 
     else:
         # mask next group to the left
         try_mask = [
             True
-            if group in t.get_groups()
-            or group in np.arange(closest_group - args.check_bp_n_groups, closest_group)
+            if group in t.get_clusters()
+            or group in np.arange(closest_group - args.check_bp_n_clusters, closest_group)
             else False
-            for group in full_groups
+            for group in full_clusters
         ]
 
-    # try_t is the current subset of TOAs and the next args.check_bp_n_groups (default = 3) groups after the closest group, but WITHOUT the closest group included
+    # try_t is the current subset of TOAs and the next args.check_bp_n_clusters (default = 3) clusters after the closest group, but WITHOUT the closest group included
     try_t = deepcopy(base_TOAs)
     try_t.select(try_mask)
     try_resids = np.float64(pint.residuals.Residuals(try_t, m).phase_resids)
     try_mjds = np.float64(try_t.get_mjds())
 
-    # try fitting the current subset and the next few groups with a polynomial while ignoring the closest group
+    # try fitting the current subset and the next few clusters with a polynomial while ignoring the closest group
     p, resids, q1, q2, q3 = np.polyfit(
         (try_mjds / u.d).to_value(u.dimensionless_unscaled), try_resids, 3, full=True
     )
@@ -369,14 +369,14 @@ def bad_points(
 
     print("Bad Point Check residuals (phase)", resids)
 
-    # right now, bad_group_t is the current subset, plus the closest group, plus the next args.check_bp_n_groups groups. This is for plotting purposes
+    # right now, bad_group_t is the current subset, plus the closest group, plus the next args.check_bp_n_clusters clusters. This is for plotting purposes
     bad_group_t = deepcopy(base_TOAs)
     bad_group_t.select(bad_group_t.get_mjds() >= min(try_t.get_mjds()))
     bad_group_t.select(bad_group_t.get_mjds() <= max(try_t.get_mjds()))
     bad_group_r = pint.residuals.Residuals(bad_group_t, m).phase_resids
 
     # define the index of the possibly bad data group
-    index = np.where(bad_group_t.get_groups() == closest_group)
+    index = np.where(bad_group_t.get_clusters() == closest_group)
 
     x = np.arange(min(try_mjds) / u.d, max(try_mjds) / u.d, 2)
     y = p[0] * x**3 + p[1] * x**2 + p[2] * x + p[3]
@@ -407,47 +407,47 @@ def bad_points(
         bad_mjds.append(bad_group_t.get_mjds()[index])
         t_others = deepcopy(try_t)
         mask = [
-            True if group in t_others.get_groups() else False for group in full_groups
+            True if group in t_others.get_clusters() else False for group in full_clusters
         ]
         skip_phases = True
 
     return skip_phases, t_others, mask, bad_mjds
 
 
-def poly_extrap(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m, mask):
+def poly_extrap(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m, mask):
     # polynomial extrapolation script, calls poly_extrap1-3, returns t_others and mask with added possible points
     resids, try_span1, try_t = poly_extrap1(
-        minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
+        minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m
     )
 
     if resids[0] < args.pe_max_resid:
         # go ahead and fit on all those days
         # try with even bigger span
         resids2, try_span2, try_t2 = poly_extrap2(
-            minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
+            minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m
         )
 
         if resids2[0] < args.pe_max_resid:
             # go ahead and fit on all those days
             # try with even bigger span
             resids3, try_span3, try_t3 = poly_extrap3(
-                minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
+                minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m
             )
 
             if resids3[0] < args.pe_max_resid:
                 print("Fitting points from", minmjd, "to", minmjd + try_span3)
                 t_others = deepcopy(try_t3)
                 mask = [
-                    True if group in t_others.get_groups() else False
-                    for group in full_groups
+                    True if group in t_others.get_clusters() else False
+                    for group in full_clusters
                 ]
 
             else:
                 print("Fitting points from", minmjd, "to", minmjd + try_span2)
                 t_others = deepcopy(try_t2)
                 mask = [
-                    True if group in t_others.get_groups() else False
-                    for group in full_groups
+                    True if group in t_others.get_clusters() else False
+                    for group in full_clusters
                 ]
 
         else:
@@ -455,15 +455,15 @@ def poly_extrap(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m,
             print("Fitting points from", minmjd, "to", minmjd + try_span1)
             t_others = deepcopy(try_t)
             mask = [
-                True if group in t_others.get_groups() else False
-                for group in full_groups
+                True if group in t_others.get_clusters() else False
+                for group in full_clusters
             ]
 
     # END INDENT OF IF_ELSEs
     return t_others, mask
 
 
-def poly_extrap1(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m):
+def poly_extrap1(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m):
     # function to calculate poly_extrap at first level
 
     try_span1 = args.span1_c * (maxmjd - minmjd)
@@ -483,8 +483,8 @@ def poly_extrap1(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
 
     # try_t now includes all the TOAs to be fit by polyfit but are not included in t_others
     try_mask = [
-        True if group in t_others.get_groups() or group in new_t.get_groups() else False
-        for group in full_groups
+        True if group in t_others.get_clusters() or group in new_t.get_clusters() else False
+        for group in full_clusters
     ]
     try_t = deepcopy(base_TOAs)
     try_t.select(try_mask)
@@ -515,7 +515,7 @@ def poly_extrap1(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     return resids, try_span1, try_t
 
 
-def poly_extrap2(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m):
+def poly_extrap2(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m):
     # function to calculate poly_extrap at second level
 
     try_span2 = args.span2_c * (maxmjd - minmjd)
@@ -536,9 +536,9 @@ def poly_extrap2(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     # try_t now includes all the TOAs to be fit by polyfit but are not included in t_others
     try_mask2 = [
         True
-        if group in t_others.get_groups() or group in new_t2.get_groups()
+        if group in t_others.get_clusters() or group in new_t2.get_clusters()
         else False
-        for group in full_groups
+        for group in full_clusters
     ]
     try_t2 = deepcopy(base_TOAs)
     try_t2.select(try_mask2)
@@ -569,7 +569,7 @@ def poly_extrap2(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     return resids2, try_span2, try_t2
 
 
-def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m):
+def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m):
     # function to calculate poly_extrap at third and final level
 
     try_span3 = args.span3_c * (maxmjd - minmjd)
@@ -590,9 +590,9 @@ def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_groups, m
     # try_t now includes all the TOAs to be fit by polyfit but are not included in t_others
     try_mask3 = [
         True
-        if group in t_others.get_groups() or group in new_t3.get_groups()
+        if group in t_others.get_clusters() or group in new_t3.get_clusters()
         else False
-        for group in full_groups
+        for group in full_clusters
     ]
     try_t3 = deepcopy(base_TOAs)
     try_t3.select(try_mask3)
@@ -887,11 +887,12 @@ def do_Ftests_phases(m_phases, t_phases, f_phases, args):
 
 def calc_random_models(base_TOAs, f, t, args):
     # calculate the random models
-
-    full_groups = base_TOAs.table["groups"]
+    print("\n" * 5, end = "#"*40)
+    print("clusters" in t.table.columns)
+    full_clusters = base_TOAs.table["clusters"]
 
     # create a mask which produces the current subset of toas
-    selected = [True if group in t.table["groups"] else False for group in full_groups]
+    selected = [True if group in t.table["clusters"] else False for group in full_clusters]
 
     base_TOAs_copy = deepcopy(base_TOAs)
 
@@ -915,7 +916,7 @@ def calc_random_models(base_TOAs, f, t, args):
         redge_multiplier=args.redge_multiplier,
     )
 
-    return full_groups, selected, rs_mean, f_toas.get_mjds(), rss, rmods
+    return full_clusters, selected, rs_mean, f_toas.get_mjds(), rss, rmods
 
 
 def save_state(m, t, mask, sys_name, iteration, base_TOAs):
@@ -965,7 +966,7 @@ def main(argv=None):
     parser.add_argument("timfile", help="tim file to read toas from")
     parser.add_argument(
         "--starting_points",
-        help="mask array to apply to chose the starting points, groups or mjds",
+        help="mask array to apply to chose the starting points, clusters or mjds",
         type=str,
         default=None,
     )
@@ -1042,8 +1043,8 @@ def main(argv=None):
         default=0.001,
     )
     parser.add_argument(
-        "--check_bp_n_groups",
-        help="how many groups ahead of the questionable group to fit to confirm a bad data point",
+        "--check_bp_n_clusters",
+        help="how many clusters ahead of the questionable group to fit to confirm a bad data point",
         type=int,
         default=3,
     )
@@ -1117,7 +1118,7 @@ def main(argv=None):
         start = args.starting_points.split(",")
         try:
             start = [int(i) for i in start]
-            start_type = "groups"
+            start_type = "clusters"
         except:
             start = [float(i) for i in start]
             start_type = "mjds"
@@ -1184,7 +1185,7 @@ def main(argv=None):
 
         # apply the starting mask and print the group(s) the starting points are part of
         t.select(mask)
-        print("Starting Groups:\n", t.get_groups())
+        print("Starting clusters:\n", t.get_clusters())
 
         # save starting TOAs to print out at end if successful
         starting_TOAs = deepcopy(t)
@@ -1226,7 +1227,7 @@ def main(argv=None):
             print(f.model.as_parfile())
 
             # calculate random models and residuals
-            full_groups, selected, rs_mean, f_toas, rss, rmods = calc_random_models(
+            full_clusters, selected, rs_mean, f_toas, rss, rmods = calc_random_models(
                 base_TOAs, f, t, args
             )
 
@@ -1248,7 +1249,7 @@ def main(argv=None):
 
             # right now t_others is just all the toas, so can use as all
             # redefine a as the mask giving the fit toas plus the closest group of toas
-            mask = np.logical_or(mask, t_others.get_groups() == closest_group)
+            mask = np.logical_or(mask, t_others.get_clusters() == closest_group)
 
             # define t_others as the current fit toas pluse the closest group
             t_others.select(mask)
@@ -1256,25 +1257,25 @@ def main(argv=None):
 
             # calculate difference in resids between current fit group and closest group
             selected_closest, diff = calc_resid_diff(
-                closest_group, full_groups, base_TOAs, f, selected
+                closest_group, full_clusters, base_TOAs, f, selected
             )
             minmjd, maxmjd = (min(t_others.get_mjds()), max(t_others.get_mjds()))
             span = maxmjd - minmjd
 
-            ngroups = max(t_others.get_groups())
+            nclusters = max(t_others.get_clusters())
 
             # if difference in phase is >0.15 and check_bad_points is True, check if the TOA is a bad data point
             if (
                 np.abs(diff) > args.check_bp_min_diff
                 and args.check_bad_points == True
-                and ngroups > 10
+                and nclusters > 10
             ):
                 skip_phases, t_others, mask, bad_mjds = bad_points(
                     dist,
                     t,
                     closest_group,
                     args,
-                    full_groups,
+                    full_clusters,
                     base_TOAs,
                     m,
                     sys_name,
@@ -1412,7 +1413,7 @@ def main(argv=None):
                             dist,
                             base_TOAs,
                             t_others,
-                            full_groups,
+                            full_clusters,
                             m,
                             mask,
                         )
@@ -1566,19 +1567,14 @@ def main(argv=None):
                 "\nThe final fit parameters are:",
                 [key for key in f.get_fitparams().keys()],
             )
-            print("starting points (groups):\n", starting_TOAs.get_groups())
+            print("starting points (clusters):\n", starting_TOAs.get_clusters())
             print("starting points (MJDs):", starting_TOAs.get_mjds())
             print("TOAs Removed (MJD):", bad_mjds)
             break
 
 
 if __name__ == "__main__":
-    start_time = time.time()
+    start_time = time.monotonic()
     main()
-    print(
-        "Final Runtime (including plots):",
-        time.time() - start_time,
-        "seconds, or",
-        (time.time() - start_time) / 60.0,
-        "minutes",
-    )
+    end_time = time.monotonic()
+    print(f"Final Runtime (including plots): {end_time - start_time} seconds, or {(end_time - start_time) / 60.0} minutes")

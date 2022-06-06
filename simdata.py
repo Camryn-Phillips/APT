@@ -173,14 +173,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     # startmjd = 56000, always
 
     # run zima with the parameters given, this may take a long time if the number of TOAs is high (i.e. over 20000)
-#     print(
-#         f"running the function zima with the following parameters ./fake_data/{sol_name} ./fake_data/{tim_name} \
-# --ntoa {ntoas} --duration {duration} --error {error} --addnoise True, and the rest are their default values"
-#     )
 
-    # os.system(
-    #     f"zima ./fake_data/{sol_name} ./fake_data/{tim_name} --ntoa {ntoas} --duration {duration} --error {error}"
-    # )
     zima(
         f"./fake_data/{sol_name}",
         f"./fake_data/{tim_name}",
@@ -191,7 +184,9 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
-    t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
+    # FIXME make the get_TOAs function compatible with pathlib.PosixPath object types
+    # t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}")) Once fixed, uncomment this line and delete the next line
+    t = pint.toa.get_TOAs(str(Path(f"./fake_data/{tim_name}")))
     t.table = t.table[mask].group_by("obs")
 
     # print(t.table) # "clusters" has not been added yet, I commented out these lines, I do not think any functionality is omitted
@@ -200,7 +195,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     # print(t.table["clusters"][:10])
 
     # del t.table["clusters"]
-
+    print("\n" * 5, end = "#" * 50)
     print("clusters" in t.table.columns)
 
     t.table["clusters"] = t.get_clusters()
@@ -555,7 +550,7 @@ def main(argv=None):
     # check that there is a directory to save the fake data in
     # want fake data in data1 folder
     fake_data = Path("./fake_data")
-    original_path = os.getcwd()
+    original_path = Path.cwd()
     if socket.gethostname() == "nimrod":
         while not os.path.exists(Path("data1/people")):
             os.chdir("..")
