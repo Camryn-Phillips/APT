@@ -45,7 +45,7 @@ def write_solfile(args, sol_name):
 
     # randomly assign values in appropriate ranges to RAJ
     if args.RAJ_value == None:
-        raj = (str(h) + ":" + str(m) + ":" + str(s), args.RAJ_error)
+        raj = (f"{h}:{m}:{s}", args.RAJ_error)
     else:
         raj = (args.RAJ_value, args.RAJ_error)
 
@@ -56,7 +56,7 @@ def write_solfile(args, sol_name):
 
     # randomly assign values in appropriate ranges to DECJ
     if args.DECJ_value == None:
-        decj = (str(d) + ":" + str(arcm) + ":" + str(arcs), args.DECJ_error)
+        decj = (f"{d}:{arcm}:{arcs}", args.DECJ_error)
     else:
         decj = (args.DECJ_value, args.DECJ_error)
 
@@ -94,16 +94,16 @@ def write_solfile(args, sol_name):
     f0_save = deepcopy(f0[0])
 
     # write the lines to the solution parfile in TEMPO2 format
-    solfile.write("PSR\t" + sol_name[:-4] + "\n")
-    solfile.write("RAJ\t" + str(raj[0]) + "\t\t1\t" + str(raj[1]) + "\n")
-    solfile.write("DECJ\t" + str(decj[0]) + "\t\t1\t" + str(decj[1]) + "\n")
-    solfile.write("F0\t" + str(f0[0]) + "\t\t1\t" + str(f0[1]) + "\n")
-    solfile.write("F1\t" + str(f1[0]) + "\t\t1\t" + str(f1[1]) + "\n")
-    solfile.write("DM\t" + str(dm[0]) + "\t\t1\t" + str(dm[1]) + "\n")
-    solfile.write("PEPOCH\t" + str(pepoch) + "\n")
-    solfile.write("TZRMJD\t" + str(tzrmjd) + "\n")
-    solfile.write("TZRFRQ\t" + str(tzrfrq) + "\n")
-    solfile.write("TZRSITE\t" + tzrsite)
+    solfile.write(f"PSR\t{sol_name[:-4]}\n")
+    solfile.write(f"RAJ\t{raj[0]}\t\t1\t{raj[1]}\n")
+    solfile.write(f"DECJ\t{decj[0]}\t\t1\t{decj[1]}\n")
+    solfile.write(f"F0\t{f0[0]}\t\t1\t{f0[1]}\n")
+    solfile.write(f"F1\t{f1[0]}\t\t1\t{f1[1]}\n")
+    solfile.write(f"DM\t{dm[0]}\t\t1\t{dm[1]}\n")
+    solfile.write(f"PEPOCH\t{pepoch}\n")
+    solfile.write(f"TZRMJD\t{tzrmjd}\n")
+    solfile.write(f"TZRFRQ\t{tzrfrq}\n")
+    solfile.write(f"TZRSITE\t{tzrsite}")
 
     solfile.close()
 
