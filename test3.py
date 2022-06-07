@@ -1,4 +1,6 @@
 import os
+import argparse
+import sys
 
 sol_name = 1
 tim_name =23
@@ -6,12 +8,27 @@ ntoas = 4
 duration = 3
 error =4
 
-print(f"zima ./fake_data/{sol_name} ./fake_data/{tim_name} --ntoa {ntoas} --duration {duration} --error {error}")
+# print(f"zima ./fake_data/{sol_name} ./fake_data/{tim_name} --ntoa {ntoas} --duration {duration} --error {error}")
 
-from pint.testJT import test
-test()
+# from pint.testJT import test
+# test()
 
-with open("/data1/people/jdtaylor/test3.txt", "w") as file:
-    file.write("hello")
+# with open("/data1/people/jdtaylor/test3.txt", "w") as file:
+#     file.write("hello")
 
-print("done")
+# print("done")
+
+parser = argparse.ArgumentParser(description="Fibonacci")
+
+parser.add_argument("n", help="enter the nth fib number", type = int)
+
+args = parser.parse_args()
+
+def fib(n):
+    n = int(n)
+    if n == 0 or n == 1:
+        return n
+    else:
+        return fib(n-2) + fib(n-1)
+
+print(f"{args.n}: {fib(args.n)}")

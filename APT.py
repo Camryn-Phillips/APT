@@ -1616,14 +1616,15 @@ def main(argv=None):
         span = (0.5 / float(f.model.F0.value)) * (10**6)
         plt.grid()
 
+        time_end_main = time.monotonic()
+        print(f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes")
         if args.plot_final == True:
             plt.show()
 
-        else:
-            os.chdir(data_path)
-            plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", overwrite=True)
-            os.chdir(original_path)
-            plt.clf()
+        os.chdir(data_path)
+        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", overwrite=True)
+        os.chdir(original_path)
+        plt.clf()
 
         # if success, stop trying and end program
         if pint.residuals.Residuals(t, f.model).chi2_reduced < 10:  # make this settable
