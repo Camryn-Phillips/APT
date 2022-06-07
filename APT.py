@@ -19,6 +19,7 @@ import os
 import csv
 import operator
 import time
+from pathlib import Path
 
 __all__ = ["main"]
 
@@ -392,10 +393,12 @@ def bad_points(
         plt.show()
 
     else:
+        os.chdir(data_path)
         plt.savefig(
-            "./alg_saves/%s/%s_%03d_B.png" % (sys_name, sys_name, iteration),
+            f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png",
             overwrite=True,
         )
+        os.chdir(original_path)
         plt.clf()
 
     if (
@@ -624,7 +627,7 @@ def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters,
 
 
 def plot_wraps(
-    f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, wrap, sys_name
+    f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, wrap, sys_name, data_path
 ):
     # plot with phase wrap
 
@@ -682,10 +685,7 @@ def plot_wraps(
         fitparams += str(param) + " "
 
     # notate pulsar name, iteration number, phase wrap, and parameters that have been fit
-    plt.title(
-        "%s Post-Fit Residuals %d P%d | fit params: %s"
-        % (m.PSR.value, iteration, wrap, fitparams)
-    )
+    plt.title(f"{m.PSR.value} Post-Fit Residuals {iteration} P{wrap} | fit params: {fitparams}")
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
     r = (
@@ -722,10 +722,9 @@ def plot_wraps(
     secaxy.set_ylabel("residuals (phase)")
 
     # save the image in alg_saves with the iteration and wrap number
-    plt.savefig(
-        "./alg_saves/%s/%s_%03d_P%03d.png" % (sys_name, sys_name, iteration, wrap),
-        overwrite=True,
-    )
+    os.chdir(data_path)
+    plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png", overwrite=True)
+    os.chdir(original_path)
     plt.close()
 
 
@@ -783,9 +782,11 @@ def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, 
     secaxy = ax.secondary_yaxis("right", functions=(us_to_phase, phase_to_us))
     secaxy.set_ylabel("residuals (phase)")
 
+    os.chdir(data_path)
     plt.savefig(
-        "./alg_saves/%s/%s_%03d.png" % (sys_name, sys_name, iteration), overwrite=True
+        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png", overwrite=True
     )
+    os.chdir(original_path)
     plt.close()
 
 
@@ -888,11 +889,14 @@ def do_Ftests_phases(m_phases, t_phases, f_phases, args):
 def calc_random_models(base_TOAs, f, t, args):
     # calculate the random models
     print("\n" * 5, end = "#"*40)
+    print()
     print("clusters" in t.table.columns)
+    base_TOAs.table["clusters"] = base_TOAs.get_clusters()
     full_clusters = base_TOAs.table["clusters"]
+    t.table["clusters"] = t.get_clusters()
 
     # create a mask which produces the current subset of toas
-    selected = [True if group in t.table["clusters"] else False for group in full_clusters]
+    selected = [True if cluster in t.table["clusters"] else False for cluster in full_clusters]
 
     base_TOAs_copy = deepcopy(base_TOAs)
 
@@ -927,6 +931,7 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs):
     last_mask = deepcopy(mask)
 
     # write these to a par, tim and txt file to be saved and reloaded
+    os.chdir(data_path)
     par_pntr = open(
         "./alg_saves/" + sys_name + "/" + sys_name + "_" + str(iteration) + ".par", "w"
     )
@@ -948,6 +953,7 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs):
 
     par_pntr.close()
     mask_pntr.close()
+    os.chdir(original_path)
 
     return last_model, last_t, last_mask
 
@@ -1028,8 +1034,7 @@ def main(argv=None):
         "--plot_bad_points",
         help="Whether to actively plot the polynomial fit on a bad point. This will interrupt the program and require manual closing",
         type=str,
-        default="False",
-    )
+        default="False",)
     parser.add_argument(
         "--check_bp_min_diff",
         help="minimum residual difference to count as a questionable point to check",
@@ -1102,9 +1107,16 @@ def main(argv=None):
         type=str,
         default="True",
     )
+    parser.add_argument(
+        "--data_path",
+        help="Where to store data.",
+        type=str,
+        default=Path.cwd(),
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
+    # FIXME Make this more direct
     args.check_bad_points = [False, True][args.check_bad_points.lower()[0] == "t"]
     args.try_poly_extrap = [False, True][args.try_poly_extrap.lower()[0] == "t"]
     args.plot_poly_extrap = [False, True][args.plot_poly_extrap.lower()[0] == "t"]
@@ -1128,6 +1140,8 @@ def main(argv=None):
     datadir = os.path.dirname(os.path.abspath(str(__file__)))
     parfile = os.path.join(datadir, args.parfile)
     timfile = os.path.join(datadir, args.timfile)
+    original_path = Path.cwd()
+    data_path = Path(args.data_path)
 
     # read in the toas
     t = pint.toa.get_TOAs(timfile)
@@ -1137,12 +1151,15 @@ def main(argv=None):
     set_F1_lim(args, parfile)
 
     # check that there is a directory to save the algorithm state in
-    if not os.path.exists("alg_saves"):
-        os.mkdir("alg_saves")
+    os.chdir(data_path)
+    if not Path.exists(Path("alg_saves")):
+        Path.mkdir(Path("alg_saves"))
 
     # checks there is a directory specific to the system in alg_saves
-    if not os.path.exists("alg_saves/" + sys_name):
-        os.mkdir("alg_saves/" + sys_name)
+    if not Path.exists(Path(f"alg_saves/{sys_name}")):
+        Path.mkdir(Path(f"alg_saves/{sys_name}"))
+
+    os.chdir(original_path)
 
     for mask in starting_points(t, start_type):
         # starting_points returns a list of boolean arrays, each a mask for the base toas. Iterating through all of them give different pairs of starting points
@@ -1322,6 +1339,7 @@ def main(argv=None):
                         iteration,
                         wrap,
                         sys_name,
+                        data_path
                     )
 
                     # repeat model selection with phase wrap. f.model should be same as f_phases[-1].model (all f_phases[n] should be the same)
@@ -1444,19 +1462,13 @@ def main(argv=None):
 
                 # print summary of chi squared values
                 print("RANDOM MODEL SUMMARY:")
-                print("chi2 median on fit TOAs:", np.median(chi2_summary))
-                print(
-                    "chi2 median on fit TOAs plus closest group:",
-                    np.median(chi2_ext_summary),
-                )
-                print("chi2 stdev on fit TOAs:", np.std(chi2_summary))
-                print(
-                    "chi2 stdev on fit TOAs plus closest group:",
-                    np.std(chi2_ext_summary),
-                )
+                print(f"chi2 median on fit TOAs: {np.median(chi2_summary)}")
+                print(f"chi2 median on fit TOAs plus closest group: {np.median(chi2_ext_summary)}")
+                print(f"chi2 stdev on fit TOAs: {np.std(chi2_summary)}")
+                print("chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}")
 
-                print("Current Fit Params:", f.get_fitparams().keys())
-                print("nTOAs (fit):", t.ntoas)
+                print(f"Current Fit Params: {f.get_fitparams().keys()}")
+                print(f"nTOAs (fit): {t.ntoas}")
 
                 t = deepcopy(base_TOAs)
                 # t is now a copy of the base TOAs (aka all the toas)
@@ -1524,10 +1536,12 @@ def main(argv=None):
         print("Final Model:\n", f.model.as_parfile())
 
         # save as .fin
+        os.chdir(data_path)
         fin_name = f.model.PSR.value + ".fin"
         finfile = open(fin_name, "w")
         finfile.write(f.model.as_parfile())
         finfile.close()
+        os.chdir(original_path)
 
         # plot final residuals if plot_final True
         xt = t.get_mjds()
@@ -1538,7 +1552,7 @@ def main(argv=None):
             fmt=".b",
             label="post-fit",
         )
-        plt.title("%s Final Post-Fit Timing Residuals" % m.PSR.value)
+        plt.title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
         plt.xlabel("MJD")
         plt.ylabel("Residual (us)")
         span = (0.5 / float(f.model.F0.value)) * (10**6)
@@ -1548,9 +1562,9 @@ def main(argv=None):
             plt.show()
 
         else:
-            plt.savefig(
-                "./alg_saves/%s/%s_final.png" % (sys_name, sys_name), overwrite=True
-            )
+            os.chdir(data_path)
+            plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", overwrite=True)
+            os.chdir(original_path)
             plt.clf()
 
         # if success, stop trying and end program
@@ -1562,14 +1576,11 @@ def main(argv=None):
                 iteration,
                 "iterations",
             )
-            print("The input parameters for this fit were:\n", args)
-            print(
-                "\nThe final fit parameters are:",
-                [key for key in f.get_fitparams().keys()],
-            )
-            print("starting points (clusters):\n", starting_TOAs.get_clusters())
-            print("starting points (MJDs):", starting_TOAs.get_mjds())
-            print("TOAs Removed (MJD):", bad_mjds)
+            print(f"The input parameters for this fit were:\n {args}")
+            print(f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}")
+            print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
+            print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
+            print(f"TOAs Removed (MJD): {bad_mjds}")
             break
 
 
