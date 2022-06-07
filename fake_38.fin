@@ -1,0 +1,28 @@
+# Created: 2022-06-07T10:03:44.446270
+# PINT_version: 0.8.8+98.g8e79081
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                               fake_38
+EPHEM                               DE421
+CLOCK                        TT(BIPM2019)
+START              56000.0000000022389005
+FINISH             56296.0013711850627778
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   66
+CHI2                                  0.0
+RAJ                      3:27:57.25044891 1 0.00336825636294751712
+DECJ                   -23:32:56.22515683 1 0.02891058583708400534
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  127.89953074100977254 1 3.778515638564925092e-09
+F1              -1.4678710593500187641e-15 1 3.0272282583760116994e-16
+PEPOCH             56000.0000000000000000
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0

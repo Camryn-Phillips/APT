@@ -328,6 +328,8 @@ def bad_points(
     mask,
     skip_phases,
     bad_mjds,
+    data_path,
+    original_path,
 ):
     # try polyfit on next n data, and if works (has resids < 0.001), just ignore it as a bad data group, and fit the next n data clusters instead
 
@@ -337,7 +339,9 @@ def bad_points(
             True
             if group in t.get_clusters()
             or group
-            in np.arange(closest_group + 1, closest_group + 1 + args.check_bp_n_clusters)
+            in np.arange(
+                closest_group + 1, closest_group + 1 + args.check_bp_n_clusters
+            )
             else False
             for group in full_clusters
         ]
@@ -347,7 +351,8 @@ def bad_points(
         try_mask = [
             True
             if group in t.get_clusters()
-            or group in np.arange(closest_group - args.check_bp_n_clusters, closest_group)
+            or group
+            in np.arange(closest_group - args.check_bp_n_clusters, closest_group)
             else False
             for group in full_clusters
         ]
@@ -410,14 +415,17 @@ def bad_points(
         bad_mjds.append(bad_group_t.get_mjds()[index])
         t_others = deepcopy(try_t)
         mask = [
-            True if group in t_others.get_clusters() else False for group in full_clusters
+            True if group in t_others.get_clusters() else False
+            for group in full_clusters
         ]
         skip_phases = True
 
     return skip_phases, t_others, mask, bad_mjds
 
 
-def poly_extrap(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m, mask):
+def poly_extrap(
+    minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m, mask
+):
     # polynomial extrapolation script, calls poly_extrap1-3, returns t_others and mask with added possible points
     resids, try_span1, try_t = poly_extrap1(
         minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters, m
@@ -486,7 +494,9 @@ def poly_extrap1(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters,
 
     # try_t now includes all the TOAs to be fit by polyfit but are not included in t_others
     try_mask = [
-        True if group in t_others.get_clusters() or group in new_t.get_clusters() else False
+        True
+        if group in t_others.get_clusters() or group in new_t.get_clusters()
+        else False
         for group in full_clusters
     ]
     try_t = deepcopy(base_TOAs)
@@ -627,7 +637,18 @@ def poly_extrap3(minmjd, maxmjd, args, dist, base_TOAs, t_others, full_clusters,
 
 
 def plot_wraps(
-    f, t_others_phases, rmods, f_toas, rss, t_phases, m, iteration, wrap, sys_name, data_path
+    f,
+    t_others_phases,
+    rmods,
+    f_toas,
+    rss,
+    t_phases,
+    m,
+    iteration,
+    wrap,
+    sys_name,
+    data_path,
+    original_path,
 ):
     # plot with phase wrap
 
@@ -685,7 +706,9 @@ def plot_wraps(
         fitparams += str(param) + " "
 
     # notate pulsar name, iteration number, phase wrap, and parameters that have been fit
-    plt.title(f"{m.PSR.value} Post-Fit Residuals {iteration} P{wrap} | fit params: {fitparams}")
+    plt.title(
+        f"{m.PSR.value} Post-Fit Residuals {iteration} P{wrap} | fit params: {fitparams}"
+    )
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
     r = (
@@ -723,12 +746,15 @@ def plot_wraps(
 
     # save the image in alg_saves with the iteration and wrap number
     os.chdir(data_path)
-    plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png", overwrite=True)
+    plt.savefig(
+        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png",
+        overwrite=True,
+    )
     os.chdir(original_path)
     plt.close()
 
 
-def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax):
+def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax, data_path, original_path):
     # plot post fit residuals with error bars
 
     model0 = deepcopy(f.model)
@@ -888,7 +914,7 @@ def do_Ftests_phases(m_phases, t_phases, f_phases, args):
 
 def calc_random_models(base_TOAs, f, t, args):
     # calculate the random models
-    print("\n" * 5, end = "#"*40)
+    print("\n" * 5, end="#" * 40)
     print()
     print("clusters" in t.table.columns)
     base_TOAs.table["clusters"] = base_TOAs.get_clusters()
@@ -896,7 +922,9 @@ def calc_random_models(base_TOAs, f, t, args):
     t.table["clusters"] = t.get_clusters()
 
     # create a mask which produces the current subset of toas
-    selected = [True if cluster in t.table["clusters"] else False for cluster in full_clusters]
+    selected = [
+        True if cluster in t.table["clusters"] else False for cluster in full_clusters
+    ]
 
     base_TOAs_copy = deepcopy(base_TOAs)
 
@@ -923,7 +951,7 @@ def calc_random_models(base_TOAs, f, t, args):
     return full_clusters, selected, rs_mean, f_toas.get_mjds(), rss, rmods
 
 
-def save_state(m, t, mask, sys_name, iteration, base_TOAs):
+def save_state(m, t, mask, sys_name, iteration, base_TOAs, data_path, original_path):
     # save the system state
 
     last_model = deepcopy(m)
@@ -1034,7 +1062,8 @@ def main(argv=None):
         "--plot_bad_points",
         help="Whether to actively plot the polynomial fit on a bad point. This will interrupt the program and require manual closing",
         type=str,
-        default="False",)
+        default="False",
+    )
     parser.add_argument(
         "--check_bp_min_diff",
         help="minimum residual difference to count as a questionable point to check",
@@ -1301,6 +1330,8 @@ def main(argv=None):
                     mask,
                     skip_phases,
                     bad_mjds,
+                    data_path,
+                    original_path,
                 )
 
             # if difference in phase is >0.15, and not a bad point, try phase wraps to see if point fits better wrapped
@@ -1339,7 +1370,8 @@ def main(argv=None):
                         iteration,
                         wrap,
                         sys_name,
-                        data_path
+                        data_path,
+                        original_path,
                     )
 
                     # repeat model selection with phase wrap. f.model should be same as f_phases[-1].model (all f_phases[n] should be the same)
@@ -1463,9 +1495,13 @@ def main(argv=None):
                 # print summary of chi squared values
                 print("RANDOM MODEL SUMMARY:")
                 print(f"chi2 median on fit TOAs: {np.median(chi2_summary)}")
-                print(f"chi2 median on fit TOAs plus closest group: {np.median(chi2_ext_summary)}")
+                print(
+                    f"chi2 median on fit TOAs plus closest group: {np.median(chi2_ext_summary)}"
+                )
                 print(f"chi2 stdev on fit TOAs: {np.std(chi2_summary)}")
-                print("chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}")
+                print(
+                    "chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}"
+                )
 
                 print(f"Current Fit Params: {f.get_fitparams().keys()}")
                 print(f"nTOAs (fit): {t.ntoas}")
@@ -1476,7 +1512,7 @@ def main(argv=None):
 
                 # plot data
                 plot_plain(
-                    f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax
+                    f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax, data_path, original_path
                 )
 
                 # get next model by comparing chi2 for t_others
@@ -1512,7 +1548,7 @@ def main(argv=None):
 
             # save current state in par, tim, and csv files
             last_model, last_t, last_mask = save_state(
-                m, t, mask, sys_name, iteration, base_TOAs
+                m, t, mask, sys_name, iteration, base_TOAs, data_path, original_path
             )
             """for each iteration, save picture, model, toas, and a"""
 
@@ -1545,16 +1581,38 @@ def main(argv=None):
 
         # plot final residuals if plot_final True
         xt = t.get_mjds()
-        plt.errorbar(
+        # plt.errorbar(
+        #     xt.value,
+        #     pint.residuals.Residuals(t, f.model).time_resids.to(u.us).value,
+        #     t.get_errors().to(u.us).value,
+        #     fmt=".b",
+        #     label="post-fit",
+        # )
+        # plt.title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
+        # plt.xlabel("MJD")
+        # plt.ylabel("Residual (us)")
+        # span = (0.5 / float(f.model.F0.value)) * (10**6)
+        # plt.grid()
+        fig, ax = plt.subplots()
+        twinx = ax.twinx()
+        ax.errorbar(
             xt.value,
             pint.residuals.Residuals(t, f.model).time_resids.to(u.us).value,
             t.get_errors().to(u.us).value,
             fmt=".b",
-            label="post-fit",
+            label="post-fit (time)",
         )
-        plt.title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
-        plt.xlabel("MJD")
-        plt.ylabel("Residual (us)")
+        twinx.errorbar(
+            xt.value,
+            pint.residuals.Residuals(t, f.model).phase_resids,
+            t.get_errors().to(u.us).value * float(f.model.F0.value) / 1e6,
+            fmt=".r",
+            label="post-fit (phase)",
+        )
+        ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
+        ax.set_xlabel("MJD")
+        ax.set_ylabel("Residual (us)")
+        twinx.set_ylabel("Residual (phase)")
         span = (0.5 / float(f.model.F0.value)) * (10**6)
         plt.grid()
 
@@ -1577,7 +1635,9 @@ def main(argv=None):
                 "iterations",
             )
             print(f"The input parameters for this fit were:\n {args}")
-            print(f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}")
+            print(
+                f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
+            )
             print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
             print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
             print(f"TOAs Removed (MJD): {bad_mjds}")
@@ -1588,4 +1648,6 @@ if __name__ == "__main__":
     start_time = time.monotonic()
     main()
     end_time = time.monotonic()
-    print(f"Final Runtime (including plots): {end_time - start_time} seconds, or {(end_time - start_time) / 60.0} minutes")
+    print(
+        f"Final Runtime (including plots): {end_time - start_time} seconds, or {(end_time - start_time) / 60.0} minutes"
+    )
