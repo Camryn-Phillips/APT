@@ -775,8 +775,7 @@ def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, 
 
     # notate the pulsar name, iteration, and fit parameters
     plt.title(
-        "%s Post-Fit Residuals %d | fit params: %s"
-        % (m.PSR.value, iteration, fitparams)
+        f"{m.PSR.value} Post-Fit Residuals {iteration} | fit params: {fitparams}"
     )
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
@@ -1146,11 +1145,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     # interpret strings as booleans
     # FIXME Make this more direct
-    args.check_bad_points = [False, True][args.check_bad_points.lower()[0] == "t"]
-    args.try_poly_extrap = [False, True][args.try_poly_extrap.lower()[0] == "t"]
-    args.plot_poly_extrap = [False, True][args.plot_poly_extrap.lower()[0] == "t"]
-    args.plot_bad_points = [False, True][args.plot_bad_points.lower()[0] == "t"]
-    args.plot_final = [False, True][args.plot_final.lower()[0] == "t"]
+    args.check_bad_points = args.check_bad_points.lower()[0] == "t"
+    args.try_poly_extrap = args.try_poly_extrap.lower()[0] == "t"
+    args.plot_poly_extrap = args.plot_poly_extrap.lower()[0] == "t"
+    args.plot_bad_points = args.plot_bad_points.lower()[0] == "t"
+    args.plot_final = args.plot_final.lower()[0] == "t"
 
     # if given starting points from command line, check if ints (group numbers) or floats (mjd values)
     start_type = None
@@ -1428,11 +1427,7 @@ def main(argv=None):
 
                 i_phase = np.argmin(chi2_phases)
                 print(
-                    "Phase wrap %d won with chi2 %f."
-                    % (
-                        list(range(-args.max_wrap, args.max_wrap + 1))[i_phase],
-                        chi2_phases[i_phase],
-                    )
+                    f"Phase wrap {list(range(-args.max_wrap, args.max_wrap + 1))[i_phase]} won with chi2 {chi2_phases[i_phase]}."
                 )
 
                 f = deepcopy(f_phases[i_phase])
@@ -1469,7 +1464,7 @@ def main(argv=None):
                         )
                     except:
                         print(
-                            "an error occued while trying to do polynomial extrapolation. Continuing on"
+                            "an error occurred while trying to do polynomial extrapolation. Continuing on"
                         )
 
                 chi2_summary = []
@@ -1581,18 +1576,6 @@ def main(argv=None):
 
         # plot final residuals if plot_final True
         xt = t.get_mjds()
-        # plt.errorbar(
-        #     xt.value,
-        #     pint.residuals.Residuals(t, f.model).time_resids.to(u.us).value,
-        #     t.get_errors().to(u.us).value,
-        #     fmt=".b",
-        #     label="post-fit",
-        # )
-        # plt.title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
-        # plt.xlabel("MJD")
-        # plt.ylabel("Residual (us)")
-        # span = (0.5 / float(f.model.F0.value)) * (10**6)
-        # plt.grid()
         fig, ax = plt.subplots()
         twinx = ax.twinx()
         ax.errorbar(

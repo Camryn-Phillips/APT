@@ -18,9 +18,12 @@ error =4
 
 # print("done")
 
+# https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+
 parser = argparse.ArgumentParser(description="Fibonacci")
 
 parser.add_argument("n", help="enter the nth fib number", type = int)
+parser.add_argument("--t", action=argparse.BooleanOptionalAction, help="enter the nth fib number", type = bool, default = True)
 
 args = parser.parse_args()
 
@@ -32,3 +35,5 @@ def fib(n):
         return fib(n-2) + fib(n-1)
 
 print(f"{args.n}: {fib(args.n)}")
+
+print(f"{args.t}")
