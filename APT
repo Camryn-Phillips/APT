@@ -754,7 +754,21 @@ def plot_wraps(
     plt.close()
 
 
-def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax, data_path, original_path):
+def plot_plain(
+    f,
+    t_others,
+    rmods,
+    f_toas,
+    rss,
+    t,
+    m,
+    iteration,
+    sys_name,
+    fig,
+    ax,
+    data_path,
+    original_path,
+):
     # plot post fit residuals with error bars
 
     model0 = deepcopy(f.model)
@@ -774,9 +788,7 @@ def plot_plain(f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, 
         fitparams += str(param) + " "
 
     # notate the pulsar name, iteration, and fit parameters
-    plt.title(
-        f"{m.PSR.value} Post-Fit Residuals {iteration} | fit params: {fitparams}"
-    )
+    plt.title(f"{m.PSR.value} Post-Fit Residuals {iteration} | fit params: {fitparams}")
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
     r = pint.residuals.Residuals(t, model0).time_resids.to(u.us).value
@@ -985,6 +997,22 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs, data_path, original_p
     return last_model, last_t, last_mask
 
 
+def solution_compare(parfile1: Path, parfile2: Path, timfile: Path) -> bool:
+    """
+    Compares two solutions to see if identical solution, where identical means they identify
+    the same pulse number for each TOA.
+    """
+    m1, t1 = pint.models.get_model_and_toas(parfile1, timfile)
+    t1.compute_pulse_numbers(m1r)
+    pn1 = t1.table["pulse_number"]
+
+    m2, t2 = pint.models.get_model_and_toas(parfile2, timfile)
+    t2.compute_pulse_numbers(m_fin)
+    pn2 = t_fin.table["pulse_number"]
+
+    return np.array_equal(pn1, pn2)
+
+
 def main(argv=None):
     import argparse
     import sys
@@ -1137,9 +1165,15 @@ def main(argv=None):
     )
     parser.add_argument(
         "--data_path",
-        help="Where to store data.",
+        help="where to store data",
         type=str,
         default=Path.cwd(),
+    )
+    parser.add_argument(
+        "--par_compare",
+        help="par file to compare solution to",
+        type=str,
+        default="",
     )
 
     args = parser.parse_args(argv)
@@ -1165,13 +1199,17 @@ def main(argv=None):
 
     """start main program"""
     # construct the filenames
-    # datadir = os.path.dirname(os.path.abspath(str(__file__)))
+    # datadir = os.path.dirname(os.path.abspath(str(__file__))) # replacing these lines with the following lines
+    # allows APT to be run in the directory that the command was ran on
     # parfile = os.path.join(datadir, args.parfile)
     # timfile = os.path.join(datadir, args.timfile)
     parfile = Path(args.parfile)
     timfile = Path(args.timfile)
     original_path = Path.cwd()
     data_path = Path(args.data_path)
+
+    # FIXME When fulled implemented, DELETE the following line
+    data_path = Path("/data1/people/jdtaylor")
 
     # read in the toas
     print(Path.cwd())
@@ -1510,7 +1548,19 @@ def main(argv=None):
 
                 # plot data
                 plot_plain(
-                    f, t_others, rmods, f_toas, rss, t, m, iteration, sys_name, fig, ax, data_path, original_path
+                    f,
+                    t_others,
+                    rmods,
+                    f_toas,
+                    rss,
+                    t,
+                    m,
+                    iteration,
+                    sys_name,
+                    fig,
+                    ax,
+                    data_path,
+                    original_path,
                 )
 
                 # get next model by comparing chi2 for t_others
@@ -1603,7 +1653,9 @@ def main(argv=None):
         plt.grid()
 
         time_end_main = time.monotonic()
-        print(f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes")
+        print(
+            f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
+        )
         if args.plot_final == True:
             plt.show()
 

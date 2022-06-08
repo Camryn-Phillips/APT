@@ -195,7 +195,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     # print(t.table["clusters"][:10])
 
     # del t.table["clusters"]
-    print("\n" * 5, end = "#" * 50)
+    print("\n" * 5, end="#" * 50)
     print("clusters" in t.table.columns)
 
     t.table["clusters"] = t.get_clusters()
@@ -261,7 +261,7 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     m = int((raj_s - h * 60 * 60) / 60)
     s = (raj_s - h * 60 * 60) - m * 60
 
-    #raj = (str(h) + ":" + str(m) + ":" + str(s), 0.01)
+    # raj = (str(h) + ":" + str(m) + ":" + str(s), 0.01)
     raj = (f"{h}:{m}:{s}", 0.01)
 
     if args.dblur != None:
@@ -281,7 +281,7 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     if arcs < 0:
         arcs = -arcs
 
-    #decj = (str(d) + ":" + str(arcm) + ":" + str(arcs), 0.01)
+    # decj = (str(d) + ":" + str(arcm) + ":" + str(arcs), 0.01)
     decj = (f"{d}:{arcm}:{arcs}", 0.01)
 
     # the length of the observation

@@ -5,17 +5,20 @@ import os
 from pathlib import Path
 
 original_path = Path.cwd()
+
+
 def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor")):
     """
     Checks if two parameter files give indetical timing solutions
     # FIXME This can be easily implented in the general case if desired.
     """
     os.chdir(path)
-    #print(sys.argv[1])
+    # print(sys.argv[1])
     whole_list = False
 
-    if not number:
+    if number is None:
         number = int(sys.argv[1])
+        numbers = [number]
         if number == -1:
             whole_list = True
             numbers = np.arange(1, 102)
@@ -25,12 +28,16 @@ def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor"
 
     for number in numbers:
         try:
-            m_cor, t_cor = pm.get_model_and_toas(f"./fake_data/fake_{number}.sol", f"./fake_data/fake_{number}.tim")
+            m_cor, t_cor = pm.get_model_and_toas(
+                f"./fake_data/fake_{number}.sol", f"./fake_data/fake_{number}.tim"
+            )
 
             t_cor.compute_pulse_numbers(m_cor)
             pn_cor = t_cor.table["pulse_number"]
 
-            m_fin, t_fin = pm.get_model_and_toas(f"fake_{number}.fin", f"./fake_data/fake_{number}.tim")
+            m_fin, t_fin = pm.get_model_and_toas(
+                f"fake_{number}.fin", f"./fake_data/fake_{number}.tim"
+            )
 
             t_fin.compute_pulse_numbers(m_fin)
             pn_fin = t_fin.table["pulse_number"]
@@ -44,7 +51,7 @@ def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor"
                 print("\n" * 6)
 
             if whole_list:
-                identical_bool_array[number-1] = [value, number]
+                identical_bool_array[number - 1] = [value, number]
             else:
                 identical_bool_array[0] = value
         except Exception as error:
@@ -53,17 +60,19 @@ def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor"
             print(error)
             print("\n" * 6)
             if whole_list:
-                identical_bool_array[number-1] = [False, number]
+                identical_bool_array[number - 1] = [False, number]
             else:
                 identical_bool_array[0] = False
-            
-            continue        
+
+            continue
 
     print(f"{identical_bool_array}, length = {len(identical_bool_array)}")
     return identical_bool_array
 
+
 def main():
     model_checker()
+
 
 if __name__ == "__main__":
     main()
