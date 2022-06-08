@@ -1165,13 +1165,16 @@ def main(argv=None):
 
     """start main program"""
     # construct the filenames
-    datadir = os.path.dirname(os.path.abspath(str(__file__)))
-    parfile = os.path.join(datadir, args.parfile)
-    timfile = os.path.join(datadir, args.timfile)
+    # datadir = os.path.dirname(os.path.abspath(str(__file__)))
+    # parfile = os.path.join(datadir, args.parfile)
+    # timfile = os.path.join(datadir, args.timfile)
+    parfile = Path(args.parfile)
+    timfile = Path(args.timfile)
     original_path = Path.cwd()
     data_path = Path(args.data_path)
 
     # read in the toas
+    print(Path.cwd())
     t = pint.toa.get_TOAs(timfile)
     sys_name = str(mb.get_model(parfile).PSR.value)
 

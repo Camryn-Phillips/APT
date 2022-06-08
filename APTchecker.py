@@ -11,36 +11,53 @@ def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor"
     # FIXME This can be easily implented in the general case if desired.
     """
     os.chdir(path)
-
-    numbers = [number]
+    #print(sys.argv[1])
+    whole_list = False
 
     if not number:
         number = int(sys.argv[1])
         if number == -1:
-            numbers = np.arange(1, 19)
-
-    identical_bool_array = np.zeros(len(numbers))
+            whole_list = True
+            numbers = np.arange(1, 102)
+    else:
+        numbers = [number]
+    identical_bool_array = [0 for i in range(len(numbers))]
 
     for number in numbers:
-        m_cor, t_cor = pm.get_model_and_toas(f"./fake_data/fake_{number}.sol", f"./fake_data/fake_{number}.tim")
+        try:
+            m_cor, t_cor = pm.get_model_and_toas(f"./fake_data/fake_{number}.sol", f"./fake_data/fake_{number}.tim")
 
-        t_cor.compute_pulse_numbers(m_cor)
-        pn_cor = t_cor.table["pulse_number"]
+            t_cor.compute_pulse_numbers(m_cor)
+            pn_cor = t_cor.table["pulse_number"]
 
-        m_fin, t_fin = pm.get_model_and_toas(f"fake_{number}.fin", f"./fake_data/fake_{number}.tim")
+            m_fin, t_fin = pm.get_model_and_toas(f"fake_{number}.fin", f"./fake_data/fake_{number}.tim")
 
-        t_fin.compute_pulse_numbers(m_fin)
-        pn_fin = t_fin.table["pulse_number"]
+            t_fin.compute_pulse_numbers(m_fin)
+            pn_fin = t_fin.table["pulse_number"]
 
-        value = np.array_equal(pn_cor, pn_fin)
-        
-        if not value:
+            value = np.array_equal(pn_cor, pn_fin)
+
+            if not value:
+                print("\n" * 6)
+            print(f"number {number} is {value}")
+            if not value:
+                print("\n" * 6)
+
+            if whole_list:
+                identical_bool_array[number-1] = [value, number]
+            else:
+                identical_bool_array[0] = value
+        except Exception as error:
             print("\n" * 6)
-        print(f"number {number} is {value}")
-        if not value:
+            print(f"{number} had an error. It is being skipped and marked False.")
+            print(error)
             print("\n" * 6)
-
-        identical_bool_array[number-1] = value
+            if whole_list:
+                identical_bool_array[number-1] = [False, number]
+            else:
+                identical_bool_array[0] = False
+            
+            continue        
 
     print(f"{identical_bool_array}, length = {len(identical_bool_array)}")
     return identical_bool_array
