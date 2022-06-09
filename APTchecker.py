@@ -4,6 +4,10 @@ import sys
 import os
 from pathlib import Path
 
+"""
+This script is intended to determine how many soltuions APT succesfully solved.
+"""
+
 original_path = Path.cwd()
 
 

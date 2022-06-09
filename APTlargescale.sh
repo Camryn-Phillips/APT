@@ -13,6 +13,7 @@ do
 
     fi
 done
-wait echo "done"
+wait 
+echo "done"
 
 date
