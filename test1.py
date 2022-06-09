@@ -20,6 +20,6 @@ def solution_compare(parfile1: Path, parfile2: Path, timfile: Path) -> bool:
 
     return np.array_equal(pn1, pn2)
 
-print(solution_compare("/data1/people/jdtaylor/old2_fake_data/TEST.par", 
-"/data1/people/jdtaylor/old2_fake_data/fake_18.sol", 
-"/data1/people/jdtaylor/old2_fake_data/fake_18.tim"))
+print(solution_compare("/data1/people/jdtaylor/fake_1.fin", 
+"/data1/people/jdtaylor/fake_data/fake_1.sol", 
+"/data1/people/jdtaylor/fake_data/fake_1.tim"))

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -W ignore::FutureWarning -W ignore::UserWarning -W ignore:DeprecationWarning
-from __future__ import print_function, division
 import pint.toa
 import pint.models
 import pint.fitter
@@ -34,7 +33,8 @@ def add_phase_wrap(toas, model, selected, phase):
     :param phase: phase diffeence to be added, i.e.  -0.5, +2, etc.
     """
     # Check if pulse numbers are in table already, if not, make the column
-    if "pn" not in toas.table.colnames:
+    #if "pn" not in toas.table.colnames:
+    if "pulse_number" not in toas.table.colnames:
         toas.compute_pulse_numbers(model)
     if "delta_pulse_number" not in toas.table.colnames:
         toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
@@ -1175,6 +1175,12 @@ def main(argv=None):
         type=str,
         default="",
     )
+    parser.add_argument(
+    "--chiqs_cutoff",
+    help="par file to compare solution to",
+    type=str,
+    default=10,
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -1208,7 +1214,7 @@ def main(argv=None):
     data_path = Path(args.data_path)
 
     # FIXME When fulled implemented, DELETE the following line
-    # data_path = Path("/data1/people/jdtaylor")
+    data_path = Path("/data1/people/jdtaylor")
 
     # read in the toas
     print(Path.cwd())
@@ -1640,13 +1646,13 @@ def main(argv=None):
             xt.value,
             pint.residuals.Residuals(t, f.model).phase_resids,
             t.get_errors().to(u.us).value * float(f.model.F0.value) / 1e6,
-            fmt=".r",
+            fmt=".b",
             label="post-fit (phase)",
         )
         ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
         ax.set_xlabel("MJD")
         ax.set_ylabel("Residual (us)")
-        twinx.set_ylabel("Residual (phase)")
+        twinx.set_ylabel("Residual (phase)", labelpad = 15)
         span = (0.5 / float(f.model.F0.value)) * (10**6)
         plt.grid()
 
@@ -1658,7 +1664,7 @@ def main(argv=None):
             plt.show()
 
         os.chdir(data_path)
-        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", overwrite=True)
+        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", overwrite=True, bbox_inches = "tight")
         os.chdir(original_path)
         plt.clf()
 

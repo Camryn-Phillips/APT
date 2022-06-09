@@ -39,6 +39,13 @@ p1, = ax.plot(P0, P1, 'bo')
 ax.set_yscale('log')
 ax.set_xscale('log')
 
+ax.set_xlabel("P (s)")
+ax.set_ylabel("dP/dt")
+#ax.set_ylabel("P\u0307")
+#ax.yaxis.set_label_coords(-0, .5)
+
+#print("P\u0307")
+
 plt.show()
 
 # fig, ax = plt.subplots(figsize = (15, 10))
