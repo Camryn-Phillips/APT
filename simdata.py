@@ -79,7 +79,7 @@ def write_solfile(args, sol_name):
     if type(args.F1_value) == float:
         f1 = (args.F1_value, args.F1_error)
 
-    f1 = (-f1[0], f1[0])
+    f1 = (-f1[0], f1[1])
 
     # assign DM param to be zero
     dm = (0.0, 0.0)
@@ -574,7 +574,7 @@ def main(argv=None):
         for filename in os.listdir(Path("./fake_data/")):
             if (
                 "fake" in filename
-                and (".tim" in filename[-4:] or ".par" in filename[-4:])
+                and (".tim" in filename[-4:] or ".par" in filename[-4:] or ".sol" in filename[-4:])
                 and "#" not in filename
             ):
                 temp_list.append(int(filename[:-4][5:]))

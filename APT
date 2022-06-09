@@ -1003,12 +1003,12 @@ def solution_compare(parfile1: Path, parfile2: Path, timfile: Path) -> bool:
     the same pulse number for each TOA.
     """
     m1, t1 = pint.models.get_model_and_toas(parfile1, timfile)
-    t1.compute_pulse_numbers(m1r)
+    t1.compute_pulse_numbers(m1)
     pn1 = t1.table["pulse_number"]
 
     m2, t2 = pint.models.get_model_and_toas(parfile2, timfile)
-    t2.compute_pulse_numbers(m_fin)
-    pn2 = t_fin.table["pulse_number"]
+    t2.compute_pulse_numbers(m2)
+    pn2 = t2.table["pulse_number"]
 
     return np.array_equal(pn1, pn2)
 
@@ -1170,7 +1170,7 @@ def main(argv=None):
         default=Path.cwd(),
     )
     parser.add_argument(
-        "--par_compare",
+        "--parfile_compare",
         help="par file to compare solution to",
         type=str,
         default="",
@@ -1178,7 +1178,6 @@ def main(argv=None):
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
-    # FIXME Make this more direct
     args.check_bad_points = args.check_bad_points.lower()[0] == "t"
     args.try_poly_extrap = args.try_poly_extrap.lower()[0] == "t"
     args.plot_poly_extrap = args.plot_poly_extrap.lower()[0] == "t"
@@ -1622,9 +1621,8 @@ def main(argv=None):
         # save as .fin
         os.chdir(data_path)
         fin_name = f.model.PSR.value + ".fin"
-        finfile = open(fin_name, "w")
-        finfile.write(f.model.as_parfile())
-        finfile.close()
+        with open(fin_name, "w") as finfile:
+            finfile.write(f.model.as_parfile())
         os.chdir(original_path)
 
         # plot final residuals if plot_final True
@@ -1673,6 +1671,9 @@ def main(argv=None):
                 iteration,
                 "iterations",
             )
+            if args.parfile_compare:
+                identical_solution = solution_compare(args.parfile_compare, f"{f.model.PSR.value}.fin", timfile)
+                print(f"\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n")
             print(f"The input parameters for this fit were:\n {args}")
             print(
                 f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
