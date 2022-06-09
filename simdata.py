@@ -62,7 +62,10 @@ def write_solfile(args, sol_name):
 
     # randomly assign values in apporiate range to F0 (100-800 Hz is millisecond pulsar range. Slow pulsars are 2-20 Hz range)
     if args.F0_value == None:
-        f0 = (r.uniform(125, 250), args.F0_error)
+        if r.uniform(0,1) > 0.35:
+            f0 = (r.uniform(0.2 , 10), args.F0_error)
+        else:
+            f0 = (r.uniform(10, 500), args.F0_error)
     else:
         f0 = (args.F0_value, args.F0_error)
 
@@ -184,19 +187,8 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
-    # FIXME make the get_TOAs function compatible with pathlib.PosixPath object types
-    # t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}")) Once fixed, uncomment this line and delete the next line
-    t = pint.toa.get_TOAs(str(Path(f"./fake_data/{tim_name}")))
+    t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
     t.table = t.table[mask].group_by("obs")
-
-    # print(t.table) # "clusters" has not been added yet, I commented out these lines, I do not think any functionality is omitted
-    # # reset the TOA table group column
-    # print("clusters" in t.table.columns)
-    # print(t.table["clusters"][:10])
-
-    # del t.table["clusters"]
-    print("\n" * 5, end="#" * 50)
-    print("clusters" in t.table.columns)
 
     t.table["clusters"] = t.get_clusters()
 
