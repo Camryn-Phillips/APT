@@ -62,8 +62,8 @@ def write_solfile(args, sol_name):
 
     # randomly assign values in apporiate range to F0 (100-800 Hz is millisecond pulsar range. Slow pulsars are 2-20 Hz range)
     if args.F0_value == None:
-        if r.uniform(0,1) > 0.35:
-            f0 = (r.uniform(0.2 , 10), args.F0_error)
+        if r.uniform(0, 1) > 0.35:
+            f0 = (r.uniform(0.2, 10), args.F0_error)
         else:
             f0 = (r.uniform(10, 500), args.F0_error)
     else:
@@ -566,7 +566,11 @@ def main(argv=None):
         for filename in os.listdir(Path("./fake_data/")):
             if (
                 "fake" in filename
-                and (".tim" in filename[-4:] or ".par" in filename[-4:] or ".sol" in filename[-4:])
+                and (
+                    ".tim" in filename[-4:]
+                    or ".par" in filename[-4:]
+                    or ".sol" in filename[-4:]
+                )
                 and "#" not in filename
             ):
                 temp_list.append(int(filename[:-4][5:]))

@@ -1672,8 +1672,12 @@ def main(argv=None):
                 "iterations",
             )
             if args.parfile_compare:
-                identical_solution = solution_compare(args.parfile_compare, f"{f.model.PSR.value}.fin", timfile)
-                print(f"\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n")
+                identical_solution = solution_compare(
+                    args.parfile_compare, f"{f.model.PSR.value}.fin", timfile
+                )
+                print(
+                    f"\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n"
+                )
             print(f"The input parameters for this fit were:\n {args}")
             print(
                 f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
