@@ -1208,7 +1208,7 @@ def main(argv=None):
     data_path = Path(args.data_path)
 
     # FIXME When fulled implemented, DELETE the following line
-    data_path = Path("/data1/people/jdtaylor")
+    # data_path = Path("/data1/people/jdtaylor")
 
     # read in the toas
     print(Path.cwd())
