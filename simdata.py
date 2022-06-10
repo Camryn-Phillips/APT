@@ -37,7 +37,7 @@ def write_solfile(args, sol_name):
     :param sol_name: name of the output .sol file
     """
 
-    solfile = open(Path(f"./fake_data/{sol_name}"), "w")
+    #########solfile = open(Path(f"./fake_data/{sol_name}"), "w")
 
     h = r.randint(0, 24)
     m = r.randint(0, 60)
@@ -96,19 +96,52 @@ def write_solfile(args, sol_name):
     # save the value of F0 for later use
     f0_save = deepcopy(f0[0])
 
-    # write the lines to the solution parfile in TEMPO2 format
-    solfile.write(f"PSR\t{sol_name[:-4]}\n")
-    solfile.write(f"RAJ\t{raj[0]}\t\t1\t{raj[1]}\n")
-    solfile.write(f"DECJ\t{decj[0]}\t\t1\t{decj[1]}\n")
-    solfile.write(f"F0\t{f0[0]}\t\t1\t{f0[1]}\n")
-    solfile.write(f"F1\t{f1[0]}\t\t1\t{f1[1]}\n")
-    solfile.write(f"DM\t{dm[0]}\t\t1\t{dm[1]}\n")
-    solfile.write(f"PEPOCH\t{pepoch}\n")
-    solfile.write(f"TZRMJD\t{tzrmjd}\n")
-    solfile.write(f"TZRFRQ\t{tzrfrq}\n")
-    solfile.write(f"TZRSITE\t{tzrsite}")
+    if args.binary_model.lower() == "ell1":
+        if args.A1 is None:
+            pass
+        else:
+            A1 = args.A1
+        if args.EPS1 is None:
+            pass
+        else:
+            EPS1 = args.EPS1
 
-    solfile.close()
+        if args.EPS2 is None:
+            pass
+        else:
+            EPS2 = args.EPS2
+
+        if args.PB is None:
+            pass
+        else:
+            PB = args.PB
+
+        if args.TASC is None:
+            pass
+        else:
+            TASC = args.TASC
+
+        ELL1pars = {"A1": A1,"EPS1": EPS1, "EPS2": EPS2, "PB": PB, "TASC": TASC}
+
+    # write the lines to the solution parfile in TEMPO2 format
+    with open(Path(f"./fake_data/{sol_name}"), "w") as solfile:
+        solfile.write(f"PSR\t{sol_name[:-4]}\n")
+        solfile.write(f"RAJ\t{raj[0]}\t\t1\t{raj[1]}\n")
+        solfile.write(f"DECJ\t{decj[0]}\t\t1\t{decj[1]}\n")
+        solfile.write(f"F0\t{f0[0]}\t\t1\t{f0[1]}\n")
+        solfile.write(f"F1\t{f1[0]}\t\t1\t{f1[1]}\n")
+        solfile.write(f"DM\t{dm[0]}\t\t1\t{dm[1]}\n")
+        solfile.write(f"PEPOCH\t{pepoch}\n")
+        solfile.write(f"TZRMJD\t{tzrmjd}\n")
+        solfile.write(f"TZRFRQ\t{tzrfrq}\n")
+        solfile.write(f"TZRSITE\t{tzrsite}")
+
+        if args.binary_model.lower() == "ell1":
+            solfile.write(f"Binary\t\tELL1")
+            for par_name in ELL1pars:
+                solfile.write(f"{par_name}\t{ELL1pars[par_name][0]}\t\t1\t{ELL1pars[par_name][1]}", end = ["\n", ""][par_name == "TASC"])
+
+    #########solfile.close()
 
     return f0_save, h, m, s, d, arcm, arcs, f0, f1, dm
 
@@ -183,7 +216,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         ntoa=ntoas,
         duration=duration,
         error=error,
-        addnoise=True,
+        addnoise= "y" == args.toa_noise,
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
@@ -220,7 +253,7 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     """
 
     # write parfile as a skewed version of the solution file, the same way real data is a corrupted or blurred version of the "true" nature of the distant pulsar
-    parfile = open(Path(f"./fake_data/{par_name}"), "w")
+    #########parfile = open(Path(f"./fake_data/{par_name}"), "w")
 
     # randomly choose a FWHM for the telescope beam in arcseconds
     FWHM = r.uniform(120, 2400)
@@ -303,18 +336,19 @@ def write_parfile(args, par_name, h, m, s, d, arcm, arcs, f0, f1, dm, ntoa2, den
     tzrsite = args.TZRSITE
 
     # write the parfile
-    parfile.write(f"PSR\t{par_name[:-4]}\n")
-    parfile.write(f"RAJ\t{raj[0]}\t0\t{raj[1]}\n")
-    parfile.write(f"DECJ\t{decj[0]}\t0\t{decj[1]}\n")
-    parfile.write(f"F0\t{f0[0]}\t1\t{f0[1]}\n")
-    parfile.write(f"F1\t{f1[0]}\t\t\t0\t{f1[1]}\n")
-    parfile.write(f"DM\t{dm[0]}\t0\t{dm[1]}\n")
-    parfile.write(f"PEPOCH\t{pepoch}\n")
-    parfile.write(f"TZRMJD\t{tzrmjd}\n")
-    parfile.write(f"TZRFRQ\t{tzrfrq}\n")
-    parfile.write(f"TZRSITE\t {tzrsite}")
+    with open(Path(f"./fake_data/{par_name}"), "w") as parfile:
+        parfile.write(f"PSR\t{par_name[:-4]}\n")
+        parfile.write(f"RAJ\t{raj[0]}\t0\t{raj[1]}\n")
+        parfile.write(f"DECJ\t{decj[0]}\t0\t{decj[1]}\n")
+        parfile.write(f"F0\t{f0[0]}\t1\t{f0[1]}\n")
+        parfile.write(f"F1\t{f1[0]}\t\t\t0\t{f1[1]}\n")
+        parfile.write(f"DM\t{dm[0]}\t0\t{dm[1]}\n")
+        parfile.write(f"PEPOCH\t{pepoch}\n")
+        parfile.write(f"TZRMJD\t{tzrmjd}\n")
+        parfile.write(f"TZRFRQ\t{tzrfrq}\n")
+        parfile.write(f"TZRSITE\t {tzrsite}")
 
-    parfile.close()
+    #########parfile.close()
     # end write parfile
 
 
@@ -526,6 +560,78 @@ def main(argv=None):
         help="range of time spans to choose from (days)",
         type=str,
         default="200,700",
+    )
+    parser.add_argument(
+        "--toa_noise",
+        help="is there toa noise?",
+        type=str,
+        default="y",
+    )
+    parser.add_argument(
+        "--binary_model",
+        help="If a binary, specify the binary model (ELL1, DD, DDGR, etc.)",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--A1",
+        help="projected semi-major axis of orbit",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--A1_blur",
+        help="how much to skew the known value of A1 by",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--EPS1",
+        help="eps1 for ELL1 model",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--EPS1_blur",
+        help="how much to skew the known value of eps1 by",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--EPS2",
+        help="eps2 for ELL1 model",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--EPS2_blur",
+        help="how much to skew the known value of eps2 by",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--PB",
+        help="period of binary pulsar (days)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--PB_blur",
+        help="how much to skew the known value of PB by",
+        type=float,
+        default=None,
+    )    
+    parser.add_argument(
+        "--TASC",
+        help="epoch of ascending node for ELL1 model",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--TASC_blur",
+        help="how much to skew the known value of TASC by",
+        type=float,
+        default=None,
     )
     # parse comma-seperated pairs
     args = parser.parse_args(argv)
