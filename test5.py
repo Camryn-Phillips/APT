@@ -1,14 +1,19 @@
 from pathlib import Path
 import os, sys
 
-tim_name = sys.argv[1]
+for num in range(46, 52):
 
-with open(Path(f"{tim_name}")) as file:
-    contents = file.read().split("\n")
+    tim_name = f"/data1/people/jdtaylor/fake_data/fake_{num}.tim"
 
-for i, line in enumerate(contents):
-    contents[i] = contents[i][0:50]
+    with open(Path(f"{tim_name}")) as file:
+        contents = file.read().split("\n")
 
-with open(Path(f"{tim_name}"), "w") as file:
-    for line in contents:
-        file.write(f"{line}\n")
+    for i, line in enumerate(contents):
+        try:
+            contents[i] = contents[i][: line.index("-pn")]
+        except ValueError:
+            pass
+
+    with open(Path(f"{tim_name}"), "w") as file:
+        for line in contents:
+            file.write(f"{line}\n")

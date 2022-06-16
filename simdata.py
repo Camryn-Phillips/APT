@@ -244,25 +244,29 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         duration=duration,
         error=error,
         addnoise=" y" == args.toa_noise,
+        mask=mask,
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
-    t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
-    t.table = t.table[mask].group_by("obs")
+    # t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
+    # t.table = t.table[mask].group_by("obs")
 
-    t.table["clusters"] = t.get_clusters()
+    # t.table["clusters"] = t.get_clusters()
 
-    print(t.table["clusters"][:10])
+    # print(t.table["clusters"][:10])
 
-    # save timfile
-    t.write_TOA_file(Path(f"./fake_data/{tim_name}"), format="TEMPO2")
+    # # save timfile
+    # t.write_TOA_file(Path(f"./fake_data/{tim_name}"), format="TEMPO2")
 
     if not pulsar_number_column:  # do not include the pulse number in the tim file
         with open(Path(f"./fake_data/{tim_name}")) as file:
             contents = file.read().split("\n")
 
         for i, line in enumerate(contents):
-            contents[i] = contents[i][0:50]
+            try:
+                contents[i] = contents[i][: line.index("-pn")]
+            except ValueError:
+                pass
 
         with open(Path(f"./fake_data/{tim_name}"), "w") as file:
             for line in contents:
@@ -418,6 +422,7 @@ def zima(
     plot: bool = False,
     format: str = "TEMPO2",
     loglevel: str = pint.logging.script_level,
+    mask: np.ndarray = None,
 ):
     log.remove()
     log.add(
@@ -458,6 +463,10 @@ def zima(
             fuzz=fuzzdays * u.d,
             add_noise=addnoise,
         )
+    # leave out toas not observed
+    if mask is not None:
+        ts.table = ts.table[mask].group_by("obs")
+    ts.table["clusters"] = ts.get_clusters()
 
     # Write TOAs to a file
     ts.write_TOA_file(timfile, name="fake", format=out_format)
