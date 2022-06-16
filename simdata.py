@@ -236,15 +236,14 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     # startmjd = 56000, always
 
     # run zima with the parameters given, this may take a long time if the number of TOAs is high (i.e. over 20000)
-
     zima(
         f"./fake_data/{sol_name}",
         f"./fake_data/{tim_name}",
         ntoa=ntoas,
         duration=duration,
         error=error,
-        addnoise=" y" == args.toa_noise,
-        mask=mask,
+        addnoise="y" == args.toa_noise,
+        mask=mask, # applying the mask here considerably cuts down on runtime
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
@@ -451,6 +450,7 @@ def zima(
             freq=np.atleast_1d(freq) * u.MHz,
             fuzz=fuzzdays * u.d,
             add_noise=addnoise,
+            mask=mask, # applying the mask here considerably cuts down on runtime
         )
     else:
         log.info(f"Reading initial TOAs from {inputtim}")
@@ -461,11 +461,12 @@ def zima(
             error=error,
             freq=np.atleast_1d(freq) * u.MHz,
             fuzz=fuzzdays * u.d,
-            add_noise=addnoise,
+            add_noise=addnoise, # in the event that inputtim is not None, then a mask should likely be applied here
         )
     # leave out toas not observed
-    if mask is not None:
-        ts.table = ts.table[mask].group_by("obs")
+    # if mask is not None:
+    #     ts.table = ts.table[mask].group_by("obs")
+
     ts.table["clusters"] = ts.get_clusters()
 
     # Write TOAs to a file
@@ -764,8 +765,10 @@ def main(argv=None):
                 temp_list.append(int(filename[5:][:-7]))
             except ValueError as e:
                 continue
-
-    maxnum = max(temp_list)
+    if len(temp_list) == 0:
+        maxnum = 0
+    else:
+        maxnum = max(temp_list)
 
     iter = args.iter
 
