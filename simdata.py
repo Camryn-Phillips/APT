@@ -245,6 +245,10 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         addnoise="y" == args.toa_noise,
         mask=mask, # applying the mask here considerably cuts down on runtime
     )
+    if args.jump_tim == "y" or (args.binary_model is not None and args.jump_tim is None):
+        # if jump is explicitly stated as yes, then make the JUMPs
+        # also, if a pulsar binary and jump_tim is not specified at all, make the JUMPs by default
+        JUMP_adder(f"./fake_data/{tim_name}")
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
     # t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
@@ -405,6 +409,50 @@ def write_parfile(
     #########parfile.close()
     # end write parfile
 
+def JUMP_adder(timfile, skip_lines=2):
+    with open(timfile) as file:
+        contents = file.read().split("\n")
+
+    mjd = []
+    for i, line in enumerate(contents):
+        if line == "" or line[0] == "C" or line[0] == "#":
+            continue
+        # print(line)
+        try:
+            mjd.append(float(line.split()[2]))
+        except IndexError:
+            pass
+
+    first_obs = True
+    i = 0
+    with open(f"{timfile}JUMP.tim", "w") as file:
+        for linenumber, line in enumerate(contents):
+            # print(i)
+            # print(line)
+            # print(f"i is {i}")
+            if (
+                line == ""
+                or line[0] == "C"
+                or line[0] == "#"
+                or linenumber < skip_lines
+            ):
+                file.write(line)
+            elif mjd[i] - mjd[i - 1] > 0.3 and i > 2:
+                # print(line)
+                # print(i)
+                # print(mjd[i] - mjd[i-1], end = "\n\n")
+                i += 1
+                if first_obs:
+                    file.write("\nJUMP\n")
+                    first_obs = False
+                else:
+                    file.write("JUMP\n\nJUMP\n")
+                file.write(line)
+            else:
+                i += 1
+                file.write(line)
+            file.write("\n")
+        file.write("JUMP\n")
 
 def zima(
     parfile,
@@ -720,6 +768,12 @@ def main(argv=None):
         "--binary_pars",
         help="binary parameters (separate values in order by commas without spaces)",
         type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--jump_tim",
+        help="include a tim file with JUMPs added (y/n)",
+        type=str,
         default=None,
     )
     # parse comma-seperated pairs

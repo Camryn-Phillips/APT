@@ -76,8 +76,10 @@ def ELL1_blur(a1, eps1, eps2, pb, tasc):
 
     # a1, eps1, eps2, pb, tasc = (0, 0), (0,0), (0, 0), (0, 0), (0, 0)
     a1 = (a1[0] + r.uniform(0, 0.01) * a1[0], 0.1)
-    eps1 = (eps1[0] + r.uniform(0, 0.001) * eps1[0], 0.1)
-    eps2 = (eps2[0] + r.uniform(0, 0.001) * eps2[0], 0.1)
+    eps1 = (0, 0)
+    eps2 = (0,0)
+    # eps1 = (eps1[0] + r.uniform(0, 0.001) * eps1[0], 0.1)
+    # eps2 = (eps2[0] + r.uniform(0, 0.001) * eps2[0], 0.1)
     pb = (pb[0] + r.uniform(0, 0.001) * pb[0], 0.1)
     tasc = (tasc[0] + r.uniform(0, 0.001) * tasc[0], 0.1)
 
