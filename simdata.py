@@ -13,6 +13,8 @@ import sys
 import pint.logging
 from loguru import logger as log
 from pathlib import Path
+from simdata_binaryextension import binary_pars_setter
+from simdata_binaryextension import binary_blur
 
 
 log.remove()
@@ -45,7 +47,7 @@ def write_solfile(args, sol_name):
 
     # randomly assign values in appropriate ranges to RAJ
     if args.RAJ_value == None:
-        raj = (f"{h}:{m}:{s}", args.RAJ_error)
+        raj = (f"{h:02d}:{m:02d}:{s}", args.RAJ_error)
     else:
         raj = (args.RAJ_value, args.RAJ_error)
 
@@ -56,7 +58,7 @@ def write_solfile(args, sol_name):
 
     # randomly assign values in appropriate ranges to DECJ
     if args.DECJ_value == None:
-        decj = (f"{d}:{arcm}:{arcs}", args.DECJ_error)
+        decj = (f"{d:02d}:{arcm:02d}:{arcs}", args.DECJ_error)
     else:
         decj = (args.DECJ_value, args.DECJ_error)
 
@@ -97,44 +99,53 @@ def write_solfile(args, sol_name):
     f0_save = deepcopy(f0[0])
 
     binary_pars = {}
-
-    if args.binary_model.lower() == "ell1":
-        e = r.uniform(1e-5, 3e-2)  # eccentricity
-        w = r.uniform(0, 2 * np.pi)  # longitude of periastron
-        if args.A1 is None:
-            cosi = r.uniform(0, 1)
-            i = np.arccos(cosi)  # inclination of orbit
-            ap = r.uniform(1e-3, 5)  # semi-major axis of pulsar
-            A1 = (ap * np.sin(i), 0.001)
+    if args.binary_model is not None:
+        if args.binary_pars is None:
+            p1, p2, p3, p4, p5 = [None for i in range(5)]
         else:
-            A1 = (args.A1, args.A1_error)
-        if args.EPS1 is None:
-            EPS1 = (e * np.sin(w), 0.001)
-        else:
-            EPS1 = args.EPS1
+            p1, p2, p3, p4, p5 = args.binary_par.split(",")
 
-        if args.EPS2 is None:
-            EPS2 = (e * np.cos(w), 0.001)
-        else:
-            EPS2 = args.EPS2
+        binary_pars = binary_pars_setter(
+            args.binary_model, p1, p2, p3, p4, p5, args.span
+        )
 
-        if args.PB is None:
-            PB = (r.uniform(0.02, 365), 0.0001)  # 30 minutes to a year
-        else:
-            PB = args.PB
+    # if args.binary_model.lower() == "ell1":
+    #     e = r.uniform(1e-5, 3e-2)  # eccentricity
+    #     w = r.uniform(0, 2 * np.pi)  # longitude of periastron
+    #     if args.A1 is None:
+    #         cosi = r.uniform(0, 1)
+    #         i = np.arccos(cosi)  # inclination of orbit
+    #         ap = r.uniform(1e-3, 5)  # semi-major axis of pulsar
+    #         A1 = (ap * np.sin(i), 0.001)
+    #     else:
+    #         A1 = (args.A1, args.A1_error)
+    #     if args.EPS1 is None:
+    #         EPS1 = (e * np.sin(w), 0.001)
+    #     else:
+    #         EPS1 = args.EPS1
 
-        if args.TASC is None:
-            duration = int(r.uniform(args.span[0], args.span[1]))
-            TASC = (r.uniform(0, duration) + 56000, 0.01)
-        else:
-            TASC = args.TASC
+    #     if args.EPS2 is None:
+    #         EPS2 = (e * np.cos(w), 0.001)
+    #     else:
+    #         EPS2 = args.EPS2
 
-        ELL1_pars = {"A1": A1, "EPS1": EPS1, "EPS2": EPS2, "PB": PB, "TASC": TASC}
-        binary_pars = ELL1_pars
-    elif args.binary_model is None:
-        pass
-    else:
-        raise Exception("Only the ELL1 model is available currently")
+    #     if args.PB is None:
+    #         PB = (r.uniform(0.02, 365), 0.0001)  # 30 minutes to a year
+    #     else:
+    #         PB = args.PB
+
+    #     if args.TASC is None:
+    #         duration = int(r.uniform(args.span[0], args.span[1]))
+    #         TASC = (r.uniform(0, duration) + 56000, 0.01)
+    #     else:
+    #         TASC = args.TASC
+
+    #     ELL1_pars = {"A1": A1, "EPS1": EPS1, "EPS2": EPS2, "PB": PB, "TASC": TASC}
+    #     binary_pars = ELL1_pars
+    # elif args.binary_model is None:
+    #     pass
+    # else:
+    #     raise Exception("Only the ELL1 model is available currently")
 
     # write the lines to the solution parfile in TEMPO2 format
     with open(Path(f"./fake_data/{sol_name}"), "w") as solfile:
@@ -143,18 +154,19 @@ def write_solfile(args, sol_name):
         solfile.write(f"DECJ\t{decj[0]}\t\t1\t{decj[1]}\n")
         solfile.write(f"F0\t{f0[0]}\t\t1\t{f0[1]}\n")
         solfile.write(f"F1\t{f1[0]}\t\t1\t{f1[1]}\n")
-        solfile.write(f"DM\t{dm[0]}\t\t1\t{dm[1]}\n")
+        solfile.write(f"DM\t{dm[0]}\t\t0\t{dm[1]}\n")
         solfile.write(f"PEPOCH\t{pepoch}\n")
         solfile.write(f"TZRMJD\t{tzrmjd}\n")
         solfile.write(f"TZRFRQ\t{tzrfrq}\n")
         solfile.write(f"TZRSITE\t{tzrsite}")
 
         if args.binary_model is not None:
-            solfile.write(f"\nBinary\t\t{args.binary_model.upper()}")
+            solfile.write(f"\nBINARY\t\t{args.binary_model.upper()}")
             for par_name in binary_pars:
                 solfile.write(
                     f"\n{par_name}\t{binary_pars[par_name][0]}\t\t1\t{binary_pars[par_name][1]}"
                 )
+            solfile.write("\n")
 
     #########solfile.close()
 
@@ -231,7 +243,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         ntoa=ntoas,
         duration=duration,
         error=error,
-        addnoise="y" == args.toa_noise,
+        addnoise=" y" == args.toa_noise,
     )
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
@@ -245,7 +257,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
     # save timfile
     t.write_TOA_file(Path(f"./fake_data/{tim_name}"), format="TEMPO2")
 
-    if not pulsar_number_column:  # do not include the pulsenumber in the tim file
+    if not pulsar_number_column:  # do not include the pulse number in the tim file
         with open(Path(f"./fake_data/{tim_name}")) as file:
             contents = file.read().split("\n")
 
@@ -304,7 +316,7 @@ def write_parfile(
     s = (raj_s - h * 60 * 60) - m * 60
 
     # raj = (str(h) + ":" + str(m) + ":" + str(s), 0.01)
-    raj = (f"{h}:{m}:{s}", 0.01)
+    raj = (f"{h:02d}:{m:02d}:{s}", 0.01)
 
     if args.dblur != None:
         dblur = args.dblur
@@ -324,7 +336,7 @@ def write_parfile(
         arcs = -arcs
 
     # decj = (str(d) + ":" + str(arcm) + ":" + str(arcs), 0.01)
-    decj = (f"{d}:{arcm}:{arcs}", 0.01)
+    decj = (f"{d:02d}:{arcm:02d}:{arcs}", 0.01)
 
     # the length of the observation
     Tobs = (ntoa2 * density) * 24 * 60 * 60
@@ -352,26 +364,19 @@ def write_parfile(
     tzrfrq = args.TZRFRQ
     tzrsite = args.TZRSITE
 
-    if (
-        args.binary_model.lower() == "ell1"
-    ):  # ELL1_pars = {"A1": A1,"EPS1": EPS1, "EPS2": EPS2, "PB": PB, "TASC": TASC}
+    if args.binary_model is not None:
         a1, eps1, eps2, pb, tasc = binary_pars.values()
-        if args.binary_blur is None:
-            # a1, eps1, eps2, pb, tasc = (0, 0), (0,0), (0, 0), (0, 0), (0, 0)
-            a1 = (a1[0] + r.uniform(0, 0.01) * a1[0], 0.1)  # 1% error
-            eps1 = (eps1[0] + r.uniform(0, 0.001) * eps1[0], 0.1)
-            eps2 = (eps2[0] + r.uniform(0, 0.001) * eps2[0], 0.1)
-            pb = (pb[0] + r.uniform(0, 0.001) * pb[0], 0.1)
-            tasc = (tasc[0] + r.uniform(0, 0.001) * tasc[0], 0.1)
-        else:
-            raise Exception("Binary blur for specified values not incorporated yet.")
-        binary_pars = ELL1_pars = {
+        binary_pars = {
             "A1": a1,
             "EPS1": eps1,
             "EPS2": eps2,
             "PB": pb,
             "TASC": tasc,
         }
+        if args.binary_blur is None:
+            binary_pars = binary_blur(args.binary_model, a1, eps1, eps2, pb, tasc)
+        else:
+            raise Exception("Binary blur for specified values not incorporated yet.")
 
     # write the parfile
     with open(Path(f"./fake_data/{par_name}"), "w") as parfile:
@@ -387,11 +392,12 @@ def write_parfile(
         parfile.write(f"TZRSITE\t {tzrsite}")
 
         if args.binary_model is not None:
-            parfile.write(f"\nBinary\t\t{args.binary_model.upper()}")
+            parfile.write(f"\nBINARY\t\t{args.binary_model.upper()}")
             for par_name in binary_pars:
                 parfile.write(
                     f"\n{par_name}\t{binary_pars[par_name][0]}\t\t0\t{binary_pars[par_name][1]}"
                 )
+            parfile.write("\n")
 
     #########parfile.close()
     # end write parfile
@@ -613,6 +619,12 @@ def main(argv=None):
         default="y",
     )
     parser.add_argument(
+        "--include_pulse_number_column",
+        help="whether to include a pulse number column in the tim file (y/n)",
+        type=str,
+        default="n",
+    )
+    parser.add_argument(
         "--binary_model",
         help=(
             "If a binary, specify the binary model (ELL1, DD, DDGR, etc.)\n"
@@ -734,41 +746,32 @@ def main(argv=None):
             fake_data.mkdir()
 
     # determine highest number system from files in fake_data
-    try:
-        temp_list = []
-        for filename in os.listdir(Path("./fake_data/")):
-            if (
-                "fake" in filename[:5]
-                and (
-                    ".tim" in filename[-4:]
-                    or ".par" in filename[-4:]
-                    or ".sol" in filename[-4:]
-                )
-                and "#" not in filename
-            ):
-                temp_list.append(int(filename[:-4][5:]))
 
-        maxnum = max(temp_list)
-    except ValueError as e:
-        maxnum = 0
-        print("no files in the directory")
-        print(os.getcwd())
-        print(os.listdir("fake_data"))
-        if len(temp_list) > 0:
-            raise e("Incorrect exception: there ARE files in the directory.")
+    temp_list = []
+    for filename in os.listdir(Path("./fake_data/")):
+        # print(filename)
+        if "fake" in filename[:5] and "sol.par" in filename and "#" not in filename:
+            try:
+                temp_list.append(int(filename[5:][:-7]))
+            except ValueError as e:
+                continue
+
+    maxnum = max(temp_list)
 
     iter = args.iter
 
     for num in range(maxnum + 1, maxnum + 1 + iter):
 
         if args.name == None:
-            sol_name = f"fake_{num}.sol"
+            sol_name = f"fake_{num}sol.par"
             par_name = f"fake_{num}.par"
             tim_name = f"fake_{num}.tim"
         else:
-            sol_name = f"{args.name}.sol"
+            sol_name = f"{args.name}sol.par"
             par_name = f"{args.name}.par"
             tim_name = f"{args.name}.tim"
+
+        print(f"files to be written: {sol_name}, {par_name}, and {tim_name}")
 
         # write solfile
         f0_save, h, m, s, d, arcm, arcs, f0, f1, dm, binary_pars = write_solfile(
@@ -777,7 +780,11 @@ def main(argv=None):
 
         # wrie timfile
         ntoa2, density = write_timfile(
-            args, f0_save, tim_name, sol_name, pulsar_number_column=False
+            args,
+            f0_save,
+            tim_name,
+            sol_name,
+            pulsar_number_column=args.include_pulse_number_column.lower()[0] == "y",
         )
 
         # write parfile
