@@ -425,7 +425,7 @@ def JUMP_adder(timfile, skip_lines=2):
 
     first_obs = True
     i = 0
-    with open(f"{timfile}JUMP.tim", "w") as file:
+    with open(f"{timfile}JUMP", "w") as file:
         for linenumber, line in enumerate(contents):
             # print(i)
             # print(line)
@@ -778,7 +778,10 @@ def main(argv=None):
     )
     # parse comma-seperated pairs
     args = parser.parse_args(argv)
-    args.span = [float(i) for i in args.span.split(",")]
+    if args.binary_model is None and args.span == "200,700":
+        args.span = [500, 1000] # binary systems have more parameters thus need more toas
+    else:
+        args.span = [float(i) for i in args.span.split(",")]
     args.f0blur_range = [float(i) for i in args.f0blur_range.split(",")]
     args.density_range = [float(i) for i in args.density_range.split(",")]
 

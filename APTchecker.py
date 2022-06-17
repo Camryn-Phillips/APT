@@ -13,7 +13,7 @@ This script is intended to determine how many soltuions APT succesfully solved.
 original_path = Path.cwd()
 
 
-def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor")):
+def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor/binary1_1")):
     """
     Checks if two parameter files give indetical timing solutions
     # FIXME This can be easily implented in the general case if desired.
@@ -37,14 +37,14 @@ def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor"
     for number in numbers:
         try:
             m_cor, t_cor = pm.get_model_and_toas(
-                f"./fake_data/fake_{number}.sol", f"./fake_data/fake_{number}.tim"
+                f"fake_{number}sol.par", f"fake_{number}.tim"
             )
 
             t_cor.compute_pulse_numbers(m_cor)
             pn_cor = t_cor.table["pulse_number"]
 
-            F1_info = parse_parfile(f"./fake_data/fake_{number}.sol")["F1"][0]
-            F0_info = parse_parfile(f"./fake_data/fake_{number}.sol")["F0"][0]
+            F1_info = parse_parfile(f"fake_{number}sol.par")["F1"][0]
+            F0_info = parse_parfile(f"fake_{number}sol.par")["F0"][0]
 
             stop_index = F1_info.index(" 1 ")
             F1 = float(F1_info[:stop_index])
@@ -57,7 +57,7 @@ def model_checker(number: int = None, path: Path = Path("/data1/people/jdtaylor"
             ###
 
             m_fin, t_fin = pm.get_model_and_toas(
-                f"fake_{number}.fin", f"./fake_data/fake_{number}.tim"
+                f"solved_{number}.par", f"fake_{number}.tim"
             )
 
             t_fin.compute_pulse_numbers(m_fin)
