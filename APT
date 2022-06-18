@@ -400,8 +400,7 @@ def bad_points(
     else:
         os.chdir(data_path)
         plt.savefig(
-            f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png",
-            overwrite=True,
+            f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png"
         )
         os.chdir(original_path)
         plt.clf()
@@ -747,8 +746,7 @@ def plot_wraps(
     # save the image in alg_saves with the iteration and wrap number
     os.chdir(data_path)
     plt.savefig(
-        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png",
-        overwrite=True,
+        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png"
     )
     os.chdir(original_path)
     plt.close()
@@ -821,7 +819,7 @@ def plot_plain(
 
     os.chdir(data_path)
     plt.savefig(
-        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png", overwrite=True
+        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png"
     )
     os.chdir(original_path)
     plt.close()
@@ -1176,9 +1174,9 @@ def main(argv=None):
         default="",
     )
     parser.add_argument(
-    "--chiqs_cutoff",
-    help="par file to compare solution to",
-    type=str,
+    "--chisq_cutoff",
+    help="",
+    type=float,
     default=10,
     )
 
@@ -1664,12 +1662,12 @@ def main(argv=None):
             plt.show()
 
         os.chdir(data_path)
-        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", overwrite=True, bbox_inches = "tight")
+        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches = "tight")
         os.chdir(original_path)
         plt.clf()
 
         # if success, stop trying and end program
-        if pint.residuals.Residuals(t, f.model).chi2_reduced < 10:  # make this settable
+        if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
             print(
                 "SUCCESS! A solution was found with reduced chi2 of",
                 pint.residuals.Residuals(t, f.model).chi2_reduced,
