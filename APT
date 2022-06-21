@@ -398,11 +398,9 @@ def bad_points(
         plt.show()
 
     else:
-        os.chdir(data_path)
         plt.savefig(
             f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png"
         )
-        os.chdir(original_path)
         plt.clf()
 
     if (
@@ -744,11 +742,9 @@ def plot_wraps(
     secaxy.set_ylabel("residuals (phase)")
 
     # save the image in alg_saves with the iteration and wrap number
-    os.chdir(data_path)
     plt.savefig(
         f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png"
     )
-    os.chdir(original_path)
     plt.close()
 
 
@@ -817,11 +813,9 @@ def plot_plain(
     secaxy = ax.secondary_yaxis("right", functions=(us_to_phase, phase_to_us))
     secaxy.set_ylabel("residuals (phase)")
 
-    os.chdir(data_path)
     plt.savefig(
         f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png"
     )
-    os.chdir(original_path)
     plt.close()
 
 
@@ -948,7 +942,8 @@ def calc_random_models(base_TOAs, f, t, args):
         pint.residuals.Residuals(base_TOAs_copy, f.model).phase_resids[selected].mean()
     )
 
-    # produce several (n_pred) random models given the fitter object and mean residual. return the random models, their residuals, and evenly spaced toas to plot against
+    # produce several (n_pred) random models given the fitter object and mean residual. 
+    # return the random models, their residuals, and evenly spaced toas to plot against
     f_toas, rss, rmods = pint.random_models.random_models(
         f,
         rs_mean,
@@ -968,7 +963,6 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs, data_path, original_p
     last_mask = deepcopy(mask)
 
     # write these to a par, tim and txt file to be saved and reloaded
-    os.chdir(data_path)
     par_pntr = open(
         "./alg_saves/" + sys_name + "/" + sys_name + "_" + str(iteration) + ".par", "w"
     )
@@ -990,7 +984,6 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs, data_path, original_p
 
     par_pntr.close()
     mask_pntr.close()
-    os.chdir(original_path)
 
     return last_model, last_t, last_mask
 
@@ -1019,7 +1012,7 @@ def main(argv=None):
 
     """required = parfile, timfile"""
     """optional = starting points, param ranges"""
-    parser = argparse.ArgumentParser(description="PINT tool for simulating TOAs")
+    parser = argparse.ArgumentParser(description="PINT tool for agorithmically timing pulsars.")
 
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
@@ -1213,25 +1206,24 @@ def main(argv=None):
 
     # FIXME When fulled implemented, DELETE the following line
     data_path = Path("/data1/people/jdtaylor")
+    os.chdir(data_path)
 
     # read in the toas
     print(Path.cwd())
     t = pint.toa.get_TOAs(timfile)
     sys_name = str(mb.get_model(parfile).PSR.value)
 
-    # set F1_lim if one not given
-    set_F1_lim(args, parfile)
 
     # check that there is a directory to save the algorithm state in
-    os.chdir(data_path)
-    if not Path.exists(Path("alg_saves")):
-        Path.mkdir(Path("alg_saves"))
+    if not Path("alg_saves").exists():
+        Path("alg_saves").mkdir()
 
     # checks there is a directory specific to the system in alg_saves
-    if not Path.exists(Path(f"alg_saves/{sys_name}")):
-        Path.mkdir(Path(f"alg_saves/{sys_name}"))
+    if not Path(f"alg_saves/{sys_name}").exists():
+        Path(f"alg_saves/{sys_name}").mkdir()
 
-    os.chdir(original_path)
+    # set F1_lim if one not given
+    set_F1_lim(args, parfile)
 
     for mask in starting_points(t, start_type):
         # starting_points returns a list of boolean arrays, each a mask for the base toas. Iterating through all of them give different pairs of starting points
@@ -1254,7 +1246,7 @@ def main(argv=None):
         #        print("WARNING: APT only fits for F0, RAJ, DECJ, and F1. All other parameters should be turned off. Turning off parameter ", parameter)
         #        getattr(m, parameter).frozen = True
 
-        # Read in the TOAs and compute ther pulse numbers
+        # Read in the TOAs and compute their pulse numbers
         t = pint.toa.get_TOAs(timfile)
 
         # Print a summary of the TOAs that we have
@@ -1623,11 +1615,9 @@ def main(argv=None):
         print("Final Model:\n", f.model.as_parfile())
 
         # save as .fin
-        os.chdir(data_path)
         fin_name = f.model.PSR.value + ".fin"
         with open(fin_name, "w") as finfile:
             finfile.write(f.model.as_parfile())
-        os.chdir(original_path)
 
         # plot final residuals if plot_final True
         xt = t.get_mjds()
@@ -1661,9 +1651,7 @@ def main(argv=None):
         if args.plot_final == True:
             plt.show()
 
-        os.chdir(data_path)
         fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches = "tight")
-        os.chdir(original_path)
         plt.clf()
 
         # if success, stop trying and end program

@@ -1,3 +1,3 @@
-from pint.JTtest import test1
+import pint
 
-test1()
+print(pint.__version__)
