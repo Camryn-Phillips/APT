@@ -902,7 +902,7 @@ def do_Ftests_phases(m_phases, t_phases, f_phases, args):
     Ftests_phase_keys = [key for key in Ftests_phase.keys() if type(key) != bool]
 
     # if nothing in the Ftests list, continue to next step. Print message if long enough span that all params should be added
-    if not bool(Ftests_phase_keys):
+    if not Ftests_phase_keys:
         if span > 100 * u.d:
             print("F1, RAJ, DECJ, and F1 have been added.")
 
@@ -1321,7 +1321,7 @@ def main(argv=None):
             )
             print("closest group:", closest_group)
 
-            if closest_group == None:
+            if closest_group is None:
                 # end the program
                 # print the final model and toas
                 # save the latest model as a new parfile (all done at end of code)
@@ -1473,9 +1473,9 @@ def main(argv=None):
                 # fit toas just in case
                 f.fit_toas()
                 print("Current Fit Params:", f.get_fitparams().keys())
-                # END INDENT FOR RESID > 0.35
+                # END INDENT FOR RESID > 0.15
 
-            # if not resid > 0.35, run as normal
+            # if not resid > 0.15, run as normal
             else:
                 # t is the current fit toas, t_others is the current fit toas plus the closest group, and a is the same as t_others
 
@@ -1498,9 +1498,9 @@ def main(argv=None):
                             m,
                             mask,
                         )
-                    except:
+                    except Exception as e:
                         print(
-                            "an error occurred while trying to do polynomial extrapolation. Continuing on"
+                            f"an error occurred while trying to do polynomial extrapolation. Continuing on. ({e})"
                         )
 
                 chi2_summary = []
@@ -1531,7 +1531,7 @@ def main(argv=None):
                 )
                 print(f"chi2 stdev on fit TOAs: {np.std(chi2_summary)}")
                 print(
-                    "chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}"
+                    f"chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}"
                 )
 
                 print(f"Current Fit Params: {f.get_fitparams().keys()}")
@@ -1606,9 +1606,7 @@ def main(argv=None):
         # residuals
         r = pint.residuals.Residuals(t, f.model)
         r_plus = pint.residuals.Residuals(t, f_plus.model)
-        if r_plus.chi2 >= r.chi2:
-            """ignore"""
-        else:
+        if r_plus.chi2 <= r.chi2:
             f = deepcopy(f_plus)
 
         # save final model as .fin file
@@ -1648,7 +1646,7 @@ def main(argv=None):
         print(
             f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
         )
-        if args.plot_final == True:
+        if args.plot_final:
             plt.show()
 
         fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches = "tight")
