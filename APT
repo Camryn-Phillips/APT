@@ -34,7 +34,7 @@ def add_phase_wrap(toas, model, selected, phase):
     :param phase: phase diffeence to be added, i.e.  -0.5, +2, etc.
     """
     # Check if pulse numbers are in table already, if not, make the column
-    #if "pn" not in toas.table.colnames:
+    # if "pn" not in toas.table.colnames:
     if "pulse_number" not in toas.table.colnames:
         toas.compute_pulse_numbers(model)
     if "delta_pulse_number" not in toas.table.colnames:
@@ -399,9 +399,7 @@ def bad_points(
         plt.show()
 
     else:
-        plt.savefig(
-            f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png"
-        )
+        plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png")
         plt.clf()
 
     if (
@@ -743,9 +741,7 @@ def plot_wraps(
     secaxy.set_ylabel("residuals (phase)")
 
     # save the image in alg_saves with the iteration and wrap number
-    plt.savefig(
-        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png"
-    )
+    plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png")
     plt.close()
 
 
@@ -814,9 +810,7 @@ def plot_plain(
     secaxy = ax.secondary_yaxis("right", functions=(us_to_phase, phase_to_us))
     secaxy.set_ylabel("residuals (phase)")
 
-    plt.savefig(
-        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png"
-    )
+    plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png")
     plt.close()
 
 
@@ -943,7 +937,7 @@ def calc_random_models(base_TOAs, f, t, args):
         pint.residuals.Residuals(base_TOAs_copy, f.model).phase_resids[selected].mean()
     )
 
-    # produce several (n_pred) random models given the fitter object and mean residual. 
+    # produce several (n_pred) random models given the fitter object and mean residual.
     # return the random models, their residuals, and evenly spaced toas to plot against
     f_toas, rss, rmods = pint.random_models.random_models(
         f,
@@ -1013,7 +1007,9 @@ def main(argv=None):
 
     """required = parfile, timfile"""
     """optional = starting points, param ranges"""
-    parser = argparse.ArgumentParser(description="PINT tool for agorithmically timing pulsars.")
+    parser = argparse.ArgumentParser(
+        description="PINT tool for agorithmically timing pulsars."
+    )
 
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
@@ -1168,10 +1164,10 @@ def main(argv=None):
         default="",
     )
     parser.add_argument(
-    "--chisq_cutoff",
-    help="",
-    type=float,
-    default=10,
+        "--chisq_cutoff",
+        help="",
+        type=float,
+        default=10,
     )
 
     args = parser.parse_args(argv)
@@ -1217,7 +1213,6 @@ def main(argv=None):
     print(Path.cwd())
     t = pint.toa.get_TOAs(timfile)
     sys_name = str(mb.get_model(parfile).PSR.value)
-
 
     # check that there is a directory to save the algorithm state in
     if not Path("alg_saves").exists():
@@ -1647,7 +1642,7 @@ def main(argv=None):
         ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
         ax.set_xlabel("MJD")
         ax.set_ylabel("Residual (us)")
-        twinx.set_ylabel("Residual (phase)", labelpad = 15)
+        twinx.set_ylabel("Residual (phase)", labelpad=15)
         span = (0.5 / float(f.model.F0.value)) * (10**6)
         plt.grid()
 
@@ -1658,7 +1653,7 @@ def main(argv=None):
         if args.plot_final:
             plt.show()
 
-        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches = "tight")
+        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches="tight")
         plt.clf()
 
         # if success, stop trying and end program
