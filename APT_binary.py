@@ -24,9 +24,11 @@ import socket
 def starting_points(toas, args = None):
     """
     Choose which cluster to NOT jump, i.e. where to start
+
+    toas : TOA object
+    args : command line arguments
     """
     t = deepcopy(toas)
-    t.table["clusters"] = t.get_clusters()
     mjd_values = t.get_mjds().value
     dts = np.fabs(mjd_values - mjd_values[:, np.newaxis]) + np.eye(len(mjd_values))
 
@@ -54,9 +56,17 @@ def starting_points(toas, args = None):
         max_starts = args.max_starts
     else:
         max_starts = 5
-    return mask_list[:max_starts]
+    return mask_list[:max_starts], starting_cluster_list
 
-def JUMP_adder(mask, toas, output_timfile):
+def JUMP_adder(mask: np.ndarray, toas: pint.toa.TOA, output_timfile, write_parfile: Path = False):
+    """
+    Adds JUMPs to a timfile. 
+
+    mask : a mask to select which toas will not be jumped
+    toas : TOA object
+    output_timfile : name for the tim file to be written
+    write_parfile : name for par file to be written (same name as that for model), default is to not write one
+    """
     t = deepcopy(toas)
 
     former_cluster = t.table[mask]["clusters"][0]
@@ -67,6 +77,8 @@ def JUMP_adder(mask, toas, output_timfile):
             j += 1
         table["flags"]["jump_tim"] = str(j)
     t.write_TOA_file(output_timfile)
+    if write_parfile:
+        m = mb.get_model(write_parfile)
     return t
 
 def APT_argument_parse(parser, argv):
