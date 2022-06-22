@@ -19,6 +19,7 @@ import csv
 import operator
 import time
 from pathlib import Path
+import socket
 
 __all__ = ["main"]
 
@@ -1204,8 +1205,12 @@ def main(argv=None):
     original_path = Path.cwd()
     data_path = Path(args.data_path)
 
-    # FIXME When fulled implemented, DELETE the following line
-    data_path = Path("/data1/people/jdtaylor")
+    #### FIXME When fulled implemented, DELETE the following line
+    if socket.gethostname()[0] == "J":
+        data_path = Path.cwd()
+    else:
+        data_path = Path("/data1/people/jdtaylor")
+    ####
     os.chdir(data_path)
 
     # read in the toas
@@ -1225,7 +1230,11 @@ def main(argv=None):
     # set F1_lim if one not given
     set_F1_lim(args, parfile)
 
+    masknumber = -1
     for mask in starting_points(t, start_type):
+        print(mask)
+        #raise Exception("Quit")
+        masknumber += 1
         # starting_points returns a list of boolean arrays, each a mask for the base toas. Iterating through all of them give different pairs of starting points
         # read in the initial model
         m = mb.get_model(parfile)
