@@ -243,12 +243,9 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         duration=duration,
         error=error,
         addnoise="y" == args.toa_noise,
-        mask=mask, # applying the mask here considerably cuts down on runtime
+        mask=mask,  # applying the mask here considerably cuts down on runtime
+        args=args,
     )
-    if args.jump_tim == "y" or (args.binary_model is not None and args.jump_tim is None):
-        # if jump is explicitly stated as yes, then make the JUMPs
-        # also, if a pulsar binary and jump_tim is not specified at all, make the JUMPs by default
-        JUMP_adder(f"./fake_data/{tim_name}")
 
     # turn the TOAs into a TOAs object and use the mask to remove all TOAs not in the correct ranges
     # t = pint.toa.get_TOAs(Path(f"./fake_data/{tim_name}"))
@@ -409,50 +406,6 @@ def write_parfile(
     #########parfile.close()
     # end write parfile
 
-def JUMP_adder(timfile, skip_lines=2):
-    with open(timfile) as file:
-        contents = file.read().split("\n")
-
-    mjd = []
-    for i, line in enumerate(contents):
-        if line == "" or line[0] == "C" or line[0] == "#":
-            continue
-        # print(line)
-        try:
-            mjd.append(float(line.split()[2]))
-        except IndexError:
-            pass
-
-    first_obs = True
-    i = 0
-    with open(f"{timfile}JUMP", "w") as file:
-        for linenumber, line in enumerate(contents):
-            # print(i)
-            # print(line)
-            # print(f"i is {i}")
-            if (
-                line == ""
-                or line[0] == "C"
-                or line[0] == "#"
-                or linenumber < skip_lines
-            ):
-                file.write(line)
-            elif mjd[i] - mjd[i - 1] > 0.3 and i > 2:
-                # print(line)
-                # print(i)
-                # print(mjd[i] - mjd[i-1], end = "\n\n")
-                i += 1
-                if first_obs:
-                    file.write("\nJUMP\n")
-                    first_obs = False
-                else:
-                    file.write("JUMP\n\nJUMP\n")
-                file.write(line)
-            else:
-                i += 1
-                file.write(line)
-            file.write("\n")
-        file.write("JUMP\n")
 
 def zima(
     parfile,
@@ -470,6 +423,7 @@ def zima(
     format: str = "TEMPO2",
     loglevel: str = pint.logging.script_level,
     mask: np.ndarray = None,
+    args=None,
 ):
     log.remove()
     log.add(
@@ -487,18 +441,30 @@ def zima(
     error = error * u.microsecond
 
     if inputtim is None:
+        # log.info("Generating uniformly spaced TOAs")
+        # ts = pint.simulation.make_fake_toas_uniform(
+        #     startMJD=startMJD,
+        #     endMJD=startMJD + duration,
+        #     ntoas=ntoa,
+        #     model=m,
+        #     obs=obs,
+        #     error=error,
+        #     freq=np.atleast_1d(freq) * u.MHz,
+        #     fuzz=fuzzdays * u.d,
+        #     add_noise=addnoise,
+        #     mask=mask, # applying the mask here considerably cuts down on runtime
+        # )
         log.info("Generating uniformly spaced TOAs")
-        ts = pint.simulation.make_fake_toas_uniform(
-            startMJD=startMJD,
-            endMJD=startMJD + duration,
-            ntoas=ntoa,
+        ts = pint.simulation.make_fake_toas_fromMJDs(
+            MJDs=np.linspace(startMJD, startMJD + duration, ntoa, dtype=np.longdouble)[
+                mask
+            ]
+            * u.d,  # applying the mask here considerably cuts down on runtime
             model=m,
             obs=obs,
             error=error,
             freq=np.atleast_1d(freq) * u.MHz,
-            fuzz=fuzzdays * u.d,
             add_noise=addnoise,
-            mask=mask, # applying the mask here considerably cuts down on runtime
         )
     else:
         log.info(f"Reading initial TOAs from {inputtim}")
@@ -509,13 +475,18 @@ def zima(
             error=error,
             freq=np.atleast_1d(freq) * u.MHz,
             fuzz=fuzzdays * u.d,
-            add_noise=addnoise, # in the event that inputtim is not None, then a mask should likely be applied here
+            add_noise=addnoise,  # in the event that inputtim is not None, then a mask should likely be applied here
         )
     # leave out toas not observed
     # if mask is not None:
     #     ts.table = ts.table[mask].group_by("obs")
 
     ts.table["clusters"] = ts.get_clusters()
+    if (
+        args.add_jumps
+    ):  # jumps should be proccesed in APT, though this whould be a good spot
+        # to add them in simdata if desired
+        pass
 
     # Write TOAs to a file
     ts.write_TOA_file(timfile, name="fake", format=out_format)
@@ -779,11 +750,21 @@ def main(argv=None):
     # parse comma-seperated pairs
     args = parser.parse_args(argv)
     if args.binary_model is None and args.span == "200,700":
-        args.span = [500, 1000] # binary systems have more parameters thus need more toas
+        args.span = [
+            500,
+            1000,
+        ]  # binary systems have more parameters thus need more toas
     else:
         args.span = [float(i) for i in args.span.split(",")]
     args.f0blur_range = [float(i) for i in args.f0blur_range.split(",")]
     args.density_range = [float(i) for i in args.density_range.split(",")]
+    args.add_jumps = False
+    if args.jump_tim == "y" or (
+        args.binary_model is not None and args.jump_tim is None
+    ):
+        # if jump is explicitly stated as yes, then make the JUMPs
+        # also, if a pulsar binary and jump_tim is not specified at all, make the JUMPs by default
+        args.add_jumps = True
 
     # write 3 files
     # fake toas - unevenly distributed, randomized errors
