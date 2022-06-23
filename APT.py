@@ -1210,7 +1210,6 @@ def main(argv=None):
     os.chdir(data_path)
 
     # read in the toas
-    print(Path.cwd())
     t = pint.toa.get_TOAs(timfile)
     sys_name = str(mb.get_model(parfile).PSR.value)
 
@@ -1228,7 +1227,7 @@ def main(argv=None):
     masknumber = -1
     for mask in starting_points(t, start_type):
         print(mask)
-        #raise Exception("Quit")
+        # raise Exception("Quit")
         masknumber += 1
         # starting_points returns a list of boolean arrays, each a mask for the base toas. Iterating through all of them give different pairs of starting points
         # read in the initial model

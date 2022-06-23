@@ -59,11 +59,11 @@ def starting_points(toas, args=None):
         max_starts = args.max_starts
     else:
         max_starts = 5
-    return mask_list[:max_starts], starting_cluster_list
+    return (mask_list[:max_starts], starting_cluster_list[:max_starts])
 
 
 def JUMP_adder_begginning(
-    mask: np.ndarray, toas: pint.toa.TOA, output_timfile, write_parfile: Path = False
+    mask: np.ndarray, toas, model, output_timfile, output_parfile
 ):
     """
     Adds JUMPs to a timfile as the begginning of analysis.
@@ -71,9 +71,10 @@ def JUMP_adder_begginning(
     mask : a mask to select which toas will not be jumped
     toas : TOA object
     output_timfile : name for the tim file to be written
-    write_parfile : name for par file to be written (same name as that for model), default is to not write one
+    output_parfile : name for par file to be written
     """
     t = deepcopy(toas)
+    flag_name = "jump_tim"
 
     former_cluster = t.table[mask]["clusters"][0]
     j = 0
@@ -81,11 +82,20 @@ def JUMP_adder_begginning(
         if table["clusters"] != former_cluster:
             former_cluster = table["clusters"]
             j += 1
-        table["flags"]["jump_tim"] = str(j)
+        table["flags"][flag_name] = str(j)
     t.write_TOA_file(output_timfile)
-    if write_parfile:
-        m = mb.get_model(write_parfile)
-    return t
+
+    # model.jump_flags_to_params(t) doesn't currently work (need flag name to be "tim_jump" and even then it still won't work),
+    # so the following is a workaround. This is likely related to issue 1294.
+    ### (workaround surrounded in ###)
+    with open(output_parfile, "w") as parfile:
+        parfile.write(model.as_parfile())
+        for i in range(1, j + 1):
+            parfile.write(f"JUMP\t\t-{flag_name} {i}\t0 1 0\n")
+    model = mb.get_model(output_parfile)
+    ###
+
+    return t, model
 
 
 def set_F1_lim(args, parfile):
@@ -112,6 +122,11 @@ def set_F1_lim(args, parfile):
 def APT_argument_parse(parser, argv):
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
+    parser.add_argument(
+        "binary_model",
+        help="which binary pulsar model to use.",
+        choices=["ELL1", "ell1"],
+    )
     parser.add_argument(
         "--starting_points",
         help="mask array to apply to chose the starting points, clusters or mjds",
@@ -330,6 +345,35 @@ def main(argv=None):
         data_path = Path("/data1/people/jdtaylor")
     ####
     os.chdir(data_path)
+
+    toas = pint.toa.get_TOAs(timfile)
+    toas.table["clusters"] = toas.get_clusters
+
+    # every TOA, should never be edited
+    all_toas_beggining = deepcopy(toas)
+
+    pulsar_name = str(mb.get_model(parfile).PSR.value)
+    if not Path(f"alg_saves/{pulsar_name}").exists():
+        Path(f"alg_saves/{pulsar_name}").mkdir(parents=True)
+    os.chdir(Path(f"alg_saves/{pulsar_name}"))
+
+    set_F1_lim(args, parfile)
+
+    mask_list, starting_cluster_list = starting_points(t)
+    for mask_number, mask in enumerate(mask_list):
+
+        print(
+            f"Mask number {mask_number} has started. Starting cluster = {starting_cluster_list[mask_number]}"
+        )
+
+        m = mb.get_model(parfile)
+        t, m = JUMP_adder_begginning(
+            mask,
+            toas,
+            m,
+            output_timfile=Path(f"{pulsar_name}_mask{mask_number}_{start}.tim"),
+            output_parfile=Path(f"{pulsar_name}_mask{mask_number}_{start}.par"),
+        )
 
 
 if __name__ == "__main__":
