@@ -98,6 +98,44 @@ def JUMP_adder_begginning(
     return t, model
 
 
+def JUMP_adder_begginning_cluster(
+    mask: np.ndarray, toas, model, output_timfile, output_parfile
+):
+    """
+    Adds JUMPs to a timfile as the begginning of analysis.
+    This differs from JUMP_adder_begginning in that the jump flags
+    are named based on the cluster number, not sequenitally from 0.
+
+    mask : a mask to select which toas will not be jumped
+    toas : TOA object
+    output_timfile : name for the tim file to be written
+    output_parfile : name for par file to be written
+    """
+    t = deepcopy(toas)
+    flag_name = "jump_tim"
+
+    former_cluster = t.table[mask]["clusters"][0]
+    j = 0
+    for i, table in enumerate(t.table[~mask]):
+        # if table["clusters"] != former_cluster:
+        #     former_cluster = table["clusters"]
+        #     j += 1
+        table["flags"][flag_name] = str(table["clusters"])
+    t.write_TOA_file(output_timfile)
+
+    # model.jump_flags_to_params(t) doesn't currently work (need flag name to be "tim_jump" and even then it still won't work),
+    # so the following is a workaround. This is likely related to issue 1294.
+    ### (workaround surrounded in ###)
+    with open(output_parfile, "w") as parfile:
+        parfile.write(model.as_parfile())
+        for i in set(t.table[~mask]["clusters"]):
+            parfile.write(f"JUMP\t\t-{flag_name} {i}\t0 1 0\n")
+    model = mb.get_model(output_parfile)
+    ###
+
+    return t, model
+
+
 def set_F1_lim(args, parfile):
     # if F1_lim not specified in command line, calculate the minimum span based on general F0-F1 relations from P-Pdot diagram
 
@@ -361,13 +399,13 @@ def main(argv=None):
 
     mask_list, starting_cluster_list = starting_points(t)
     for mask_number, mask in enumerate(mask_list):
-
+        starting_cluster = starting_cluster_list[mask_number]
         print(
-            f"Mask number {mask_number} has started. Starting cluster = {starting_cluster_list[mask_number]}"
+            f"Mask number {mask_number} has started. Starting cluster = {starting_cluster}"
         )
 
         m = mb.get_model(parfile)
-        t, m = JUMP_adder_begginning(
+        t, m = JUMP_adder_begginning_cluster(
             mask,
             toas,
             m,
