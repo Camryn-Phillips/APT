@@ -21,7 +21,8 @@ import time
 from pathlib import Path
 import socket
 
-def starting_points(toas, args = None):
+
+def starting_points(toas, args=None):
     """
     Choose which cluster to NOT jump, i.e. where to start
 
@@ -40,16 +41,18 @@ def starting_points(toas, args = None):
     # f.fit_toas()
     i = -1
     while score_list.any():
-        #break
+        # break
         i += 1
-        #print(i)
+        # print(i)
         hsi = np.argmax(score_list)
         score_list[hsi] = 0
         cluster = t.table["clusters"][hsi]
-        #mask = np.zeros(len(mjd_values), dtype=bool)
+        # mask = np.zeros(len(mjd_values), dtype=bool)
         mask = t.table["clusters"] == cluster
 
-        if i == 0 or not np.any(np.all(mask == mask_list, axis=1)): #equivalent to the intended effect of checking if not mask in mask_list
+        if i == 0 or not np.any(
+            np.all(mask == mask_list, axis=1)
+        ):  # equivalent to the intended effect of checking if not mask in mask_list
             mask_list.append(mask)
             starting_cluster_list.append(cluster)
     if args is not None:
@@ -58,9 +61,12 @@ def starting_points(toas, args = None):
         max_starts = 5
     return mask_list[:max_starts], starting_cluster_list
 
-def JUMP_adder(mask: np.ndarray, toas: pint.toa.TOA, output_timfile, write_parfile: Path = False):
+
+def JUMP_adder_begginning(
+    mask: np.ndarray, toas: pint.toa.TOA, output_timfile, write_parfile: Path = False
+):
     """
-    Adds JUMPs to a timfile. 
+    Adds JUMPs to a timfile as the begginning of analysis.
 
     mask : a mask to select which toas will not be jumped
     toas : TOA object
@@ -80,6 +86,28 @@ def JUMP_adder(mask: np.ndarray, toas: pint.toa.TOA, output_timfile, write_parfi
     if write_parfile:
         m = mb.get_model(write_parfile)
     return t
+
+
+def set_F1_lim(args, parfile):
+    # if F1_lim not specified in command line, calculate the minimum span based on general F0-F1 relations from P-Pdot diagram
+
+    if args.F1_lim == None:
+        # for slow pulsars, allow F1 to be up to 1e-12 Hz/s, for medium pulsars, 1e-13 Hz/s, otherwise, 1e-14 Hz/s (recycled pulsars)
+        F0 = mb.get_model(parfile).F0.value
+
+        if F0 < 10:
+            F1 = 10**-12
+
+        elif 10 < F0 < 100:
+            F1 = 10**-13
+
+        else:
+            F1 = 10**-14
+
+        # rearranged equation [delta-phase = (F1*span^2)/2], span in seconds.
+        # calculates span (in days) for delta-phase to reach 0.35 due to F1
+        args.F1_lim = np.sqrt(0.35 * 2 / F1) / 86400.0
+
 
 def APT_argument_parse(parser, argv):
     parser.add_argument("parfile", help="par file to read model from")
@@ -257,6 +285,7 @@ def APT_argument_parse(parser, argv):
 
     return args, parser
 
+
 def main(argv=None):
     import argparse
     import sys
@@ -302,7 +331,6 @@ def main(argv=None):
     ####
     os.chdir(data_path)
 
-    print(args.n_pred)
 
 if __name__ == "__main__":
     start_time = time.monotonic()
