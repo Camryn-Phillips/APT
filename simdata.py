@@ -749,7 +749,7 @@ def main(argv=None):
     )
     # parse comma-seperated pairs
     args = parser.parse_args(argv)
-    if args.binary_model is None and args.span == "200,700":
+    if args.binary_model is not None and args.span == "200,700":
         args.span = [
             500,
             1000,

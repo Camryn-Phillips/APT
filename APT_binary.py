@@ -28,8 +28,13 @@ def starting_points(toas, args=None):
 
     toas : TOA object
     args : command line arguments
+
+    Returns
+    tuple : (mask_list[:max_starts], starting_cluster_list[:max_starts])
     """
     t = deepcopy(toas)
+    if "clusters" not in t.table.columns:
+        t.table["clusters"] = t.get_clusters()
     mjd_values = t.get_mjds().value
     dts = np.fabs(mjd_values - mjd_values[:, np.newaxis]) + np.eye(len(mjd_values))
 
@@ -63,7 +68,7 @@ def starting_points(toas, args=None):
 
 
 def JUMP_adder_begginning(
-    mask: np.ndarray, toas, model, output_timfile, output_parfile
+    mask: np.ndarray, toas, model, output_parfile, output_timfile
 ):
     """
     Adds JUMPs to a timfile as the begginning of analysis.
@@ -95,11 +100,11 @@ def JUMP_adder_begginning(
     model = mb.get_model(output_parfile)
     ###
 
-    return t, model
+    return model, t
 
 
 def JUMP_adder_begginning_cluster(
-    mask: np.ndarray, toas, model, output_timfile, output_parfile
+    mask: np.ndarray, toas, model, output_parfile, output_timfile
 ):
     """
     Adds JUMPs to a timfile as the begginning of analysis.
@@ -108,10 +113,15 @@ def JUMP_adder_begginning_cluster(
 
     mask : a mask to select which toas will not be jumped
     toas : TOA object
-    output_timfile : name for the tim file to be written
     output_parfile : name for par file to be written
+    output_timfile : name for the tim file to be written
+
+    Returns
+    model,, t
     """
     t = deepcopy(toas)
+    if "clusters" not in t.table.columns:
+        t.table["clusters"] = t.get_clusters()
     flag_name = "jump_tim"
 
     former_cluster = t.table[mask]["clusters"][0]
@@ -133,8 +143,26 @@ def JUMP_adder_begginning_cluster(
     model = mb.get_model(output_parfile)
     ###
 
-    return t, model
+    return model, t
 
+def phase_connector(toas: pint.toa.TOAs, model, connection_filter = "linear", cluster: int = "all"):
+    """
+    Makes sure each cluster is phase connected with itself. 
+    """
+    if cluster == "all":
+        for cluster_number in set(toas.get_clusters()):
+            phase_connector(toas, model, connection_filter, cluster_number)
+
+    t = deepcopy(toas)
+    cluster_mask = t.get_cluster() == cluster
+    cluster_toas = t.select(cluster_mask)
+    residuals = pint.residuals.Residuals(t, model).calc_phase_resids()
+    mjds = t.get_mjds().value
+    if connection_filter == "linear":
+        toa_slopes = np.zeros(len(mjds) - 1)
+        for i in range(len(mjds) - 1):
+            slope = (residuals[i+1] - residuals[i]) / (mjs[i+1] - mjds[i])
+            toa_slopes[i] = slope
 
 def set_F1_lim(args, parfile):
     # if F1_lim not specified in command line, calculate the minimum span based on general F0-F1 relations from P-Pdot diagram
@@ -385,7 +413,7 @@ def main(argv=None):
     os.chdir(data_path)
 
     toas = pint.toa.get_TOAs(timfile)
-    toas.table["clusters"] = toas.get_clusters
+    toas.table["clusters"] = toas.get_clusters()
 
     # every TOA, should never be edited
     all_toas_beggining = deepcopy(toas)
@@ -405,7 +433,7 @@ def main(argv=None):
         )
 
         m = mb.get_model(parfile)
-        t, m = JUMP_adder_begginning_cluster(
+        m, t = JUMP_adder_begginning_cluster(
             mask,
             toas,
             m,

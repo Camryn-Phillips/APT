@@ -1,0 +1,72 @@
+# Created: 2022-06-24T12:35:06.674107
+# PINT_version: 0.8.8+175.gb8b04f5.dirty
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                              fake_100
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+START              56000.0000001125150926
+FINISH             56482.3846850560271876
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  103
+CHI2                   145.81653760094483
+RAJ                      4:40:55.87837223 1 0.20593691243672543334
+DECJ                   -50:06:43.03127574 1 8.15544748153506482424
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  2.2803257276225307086 1 1.0592453445166245623e-08
+F1              -1.1794989553622161657e-13 1 1.3511188590410888469e-15
+F2                                    0.0
+PEPOCH             56000.0000000000000000
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0
+JUMP            -tim_jump 1                       0.0 0 0.0
+JUMP            -tim_jump 2                       0.0 0 0.0
+JUMP            -tim_jump 3                       0.0 0 0.0
+JUMP            -tim_jump 4                       0.0 0 0.0
+JUMP            -tim_jump 5                       0.0 0 0.0
+JUMP            -tim_jump 6                       0.0 0 0.0
+JUMP            -tim_jump 7                       0.0 0 0.0
+JUMP            -tim_jump 8                       0.0 0 0.0
+JUMP            -tim_jump 9                       0.0 0 0.0
+JUMP            -tim_jump 10                       0.0 0 0.0
+JUMP            -tim_jump 11                       0.0 0 0.0
+JUMP            -tim_jump 12                       0.0 0 0.0
+JUMP            -tim_jump 13                       0.0 0 0.0
+JUMP            -tim_jump 14                       0.0 0 0.0
+JUMP            -tim_jump 15       -0.2431994438358951 1 0.011340071880160214
+JUMP            -tim_jump 16       -0.5600917037271803 1 0.0216434326108859
+JUMP            -tim_jump 17       -0.9501402745585871 1 0.0425728038747822
+JUMP            -tim_jump 18          -1.5624400966018 1 0.07212085460159917
+JUMP            -tim_jump 19        -2.200559146345737 1 0.12110033469015435
+JUMP            -tim_jump 20        -3.035289020535247 1 0.17134152020310103
+JUMP            -tim_jump 21       -3.8446894241793044 1 0.21587872345545028
+JUMP            -tim_jump 22        -4.740716981773837 1 0.2586205001703274
+JUMP            -tim_jump 23        -5.269092002073644 1 0.2987273223442783
+JUMP            -tim_jump 24        -6.025781399588635 1 0.3394329657815358
+JUMP            -tim_jump 25                       0.0 0 0.0
+JUMP            -tim_jump 26                       0.0 0 0.0
+JUMP            -tim_jump 27                       0.0 0 0.0
+JUMP            -tim_jump 28                       0.0 0 0.0
+JUMP            -tim_jump 29                       0.0 0 0.0
+JUMP            -tim_jump 30                       0.0 0 0.0
+JUMP            -tim_jump 31                       0.0 0 0.0
+JUMP            -tim_jump 32                       0.0 0 0.0
+JUMP            -tim_jump 33                       0.0 0 0.0
+JUMP            -tim_jump 34                       0.0 0 0.0
+JUMP            -tim_jump 35                       0.0 0 0.0
+JUMP            -tim_jump 36                       0.0 0 0.0
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+DM1                                   0.0
+BINARY                               ELL1
+PB                  17.495715149187070239 1 0.00012169321189142084732
+A1                      5.135869593494187 1 0.0008698133747687818
+TASC               56546.6217050372843680 1 0.0031541191948520363487
+EPS1            -9.433867643858024479e-05 1 0.00041873571957772899458
+EPS2            -0.0122693338249207350655 1 0.00022957083096499029777

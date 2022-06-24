@@ -1,0 +1,72 @@
+# Created: 2022-06-24T12:44:57.009662
+# PINT_version: 0.8.8+175.gb8b04f5.dirty
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                              fake_100
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+START              56000.0000001125150926
+FINISH             56377.9186314727912731
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   87
+CHI2                   1087.4419074971138
+RAJ                      4:42:20.36563817 0 0.00999999999999999153
+DECJ                   -49:31:00.88320245 0 0.01000000000000000021
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  2.2803280002813866951 1 1.7881039913158227614e-08
+F1               7.199985920677912459e-13 1 4.4698011533170348028e-14
+F2                                    0.0
+PEPOCH             56000.0000000000000000
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0
+JUMP            -tim_jump 1                       0.0 0 0.0
+JUMP            -tim_jump 2                       0.0 0 0.0
+JUMP            -tim_jump 3                       0.0 0 0.0
+JUMP            -tim_jump 4                       0.0 0 0.0
+JUMP            -tim_jump 5                       0.0 0 0.0
+JUMP            -tim_jump 6        0.4677392004194267 1 0.007523628293444219
+JUMP            -tim_jump 7        0.4199143252346879 1 0.019426830669731436
+JUMP            -tim_jump 8        1.1274082240031882 1 0.03685575161602547
+JUMP            -tim_jump 9        4.4867416581641795 1 0.18143196626190744
+JUMP            -tim_jump 10        13.717859755729505 1 0.5595050798803766
+JUMP            -tim_jump 11        23.621270266512745 1 0.9902573920998403
+JUMP            -tim_jump 12         38.39985176803932 1 1.6184993117991733
+JUMP            -tim_jump 13         50.44098090347773 1 2.1561789849379425
+JUMP            -tim_jump 14         65.03617701684067 1 2.781761401654754
+JUMP            -tim_jump 15         86.07900161641797 1 3.6850408806790247
+JUMP            -tim_jump 16         103.4746650358572 1 4.451481208165086
+JUMP            -tim_jump 17        127.36287003060498 1 5.478090378653354
+JUMP            -tim_jump 18        155.50400287743759 1 6.713694534596023
+JUMP            -tim_jump 19        195.29383079900316 1 8.44530854650617
+JUMP            -tim_jump 20        235.51642621013178 1 10.197881787555568
+JUMP            -tim_jump 21                       0.0 0 0.0
+JUMP            -tim_jump 22                       0.0 0 0.0
+JUMP            -tim_jump 23                       0.0 0 0.0
+JUMP            -tim_jump 24                       0.0 0 0.0
+JUMP            -tim_jump 25                       0.0 0 0.0
+JUMP            -tim_jump 26                       0.0 0 0.0
+JUMP            -tim_jump 27                       0.0 0 0.0
+JUMP            -tim_jump 28                       0.0 0 0.0
+JUMP            -tim_jump 29                       0.0 0 0.0
+JUMP            -tim_jump 30                       0.0 0 0.0
+JUMP            -tim_jump 31                       0.0 0 0.0
+JUMP            -tim_jump 32                       0.0 0 0.0
+JUMP            -tim_jump 33                       0.0 0 0.0
+JUMP            -tim_jump 34                       0.0 0 0.0
+JUMP            -tim_jump 35                       0.0 0 0.0
+JUMP            -tim_jump 36                       0.0 0 0.0
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+DM1                                   0.0
+BINARY                               ELL1
+PB                  17.236820091027441799 1 3.2220744091177087962e-05
+A1                      5.039909899984891 0 0.1
+TASC               56538.5468482084300000 0 0.1
+EPS1                                  0.0 0 0.0
+EPS2                                  0.0 0 0.0
