@@ -113,11 +113,12 @@ def JUMP_adder_begginning_cluster(
 
     mask : a mask to select which toas will not be jumped
     toas : TOA object
+    model : model object
     output_parfile : name for par file to be written
     output_timfile : name for the tim file to be written
 
     Returns
-    model,, t
+    model, t
     """
     t = deepcopy(toas)
     if "clusters" not in t.table.columns:
@@ -151,9 +152,18 @@ def phase_connector(
     model: pint.models.timing_model.TimingModel,
     connection_filter="linear",
     cluster: int = "all",
+    mjds_total: np.ndarray = None,
+    **kwargs
 ):
     """
     Makes sure each cluster is phase connected with itself.
+    toas : TOAs object
+    model : model object
+    connection_filter1 : the basic filter for determing what is and what is not phase connected
+        options: 'linear', 'polynomial'
+    kwargs : an additional constraint on phase connection, can use any number of these
+        options: 'wrap', 'degree' 
+    mjds_total : all mjds of TOAs, optional (may decrease runtime to include)
     """
     if "clusters" not in t.table.columns:
         t.table["clusters"] = t.get_clusters()
@@ -163,13 +173,19 @@ def phase_connector(
     t = deepcopy(toas)
     cluster_mask = t.table["clusters"] == cluster
     cluster_toas = t.select(cluster_mask)
+
     residuals = pint.residuals.Residuals(t, model).calc_phase_resids()
-    mjds = t.get_mjds().value
+    if mjds_total is not None:
+        mjds_total = t.get_mjds().value
+    mjds = mjds_total[cluster_mask]
+
     if connection_filter == "linear":
+        residuals2 = np.concatenate((np.zeros(1),residuals))
         toa_slopes = np.zeros(len(mjds) - 1)
         for i in range(len(mjds) - 1):
             slope = (residuals[i + 1] - residuals[i]) / (mjds[i + 1] - mjds[i])
             toa_slopes[i] = slope
+
 
 
 def set_F1_lim(args, parfile):
@@ -422,6 +438,7 @@ def main(argv=None):
 
     toas = pint.toa.get_TOAs(timfile)
     toas.table["clusters"] = toas.get_clusters()
+    mjds_total = toas.get_mjds().value
 
     # every TOA, should never be edited
     all_toas_beggining = deepcopy(toas)
