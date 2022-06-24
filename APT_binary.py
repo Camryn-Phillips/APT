@@ -145,24 +145,32 @@ def JUMP_adder_begginning_cluster(
 
     return model, t
 
-def phase_connector(toas: pint.toa.TOAs, model, connection_filter = "linear", cluster: int = "all"):
-    """
-    Makes sure each cluster is phase connected with itself. 
-    """
-    if cluster == "all":
-        for cluster_number in set(toas.get_clusters()):
-            phase_connector(toas, model, connection_filter, cluster_number)
 
+def phase_connector(
+    toas: pint.toa.TOAs,
+    model: pint.models.timing_model.TimingModel,
+    connection_filter="linear",
+    cluster: int = "all",
+):
+    """
+    Makes sure each cluster is phase connected with itself.
+    """
+    if "clusters" not in t.table.columns:
+        t.table["clusters"] = t.get_clusters()
+    if cluster == "all":
+        for cluster_number in set(toas["clusters"]):
+            phase_connector(toas, model, connection_filter, cluster_number)
     t = deepcopy(toas)
-    cluster_mask = t.get_cluster() == cluster
+    cluster_mask = t.table["clusters"] == cluster
     cluster_toas = t.select(cluster_mask)
     residuals = pint.residuals.Residuals(t, model).calc_phase_resids()
     mjds = t.get_mjds().value
     if connection_filter == "linear":
         toa_slopes = np.zeros(len(mjds) - 1)
         for i in range(len(mjds) - 1):
-            slope = (residuals[i+1] - residuals[i]) / (mjs[i+1] - mjds[i])
+            slope = (residuals[i + 1] - residuals[i]) / (mjds[i + 1] - mjds[i])
             toa_slopes[i] = slope
+
 
 def set_F1_lim(args, parfile):
     # if F1_lim not specified in command line, calculate the minimum span based on general F0-F1 relations from P-Pdot diagram
