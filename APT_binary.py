@@ -150,10 +150,10 @@ def JUMP_adder_begginning_cluster(
 def phase_connector(
     toas: pint.toa.TOAs,
     model: pint.models.timing_model.TimingModel,
-    connection_filter="linear",
+    connection_filter: str = "linear",
     cluster: int = "all",
     mjds_total: np.ndarray = None,
-    **kwargs
+    **kwargs,
 ):
     """
     Makes sure each cluster is phase connected with itself.
@@ -162,30 +162,99 @@ def phase_connector(
     connection_filter1 : the basic filter for determing what is and what is not phase connected
         options: 'linear', 'polynomial'
     kwargs : an additional constraint on phase connection, can use any number of these
-        options: 'wrap', 'degree' 
+        options: 'wrap', 'degree'
     mjds_total : all mjds of TOAs, optional (may decrease runtime to include)
+
+    Returns
+    True
     """
-    if "clusters" not in t.table.columns:
-        t.table["clusters"] = t.get_clusters()
+    # print(f"cluster {cluster}")
     if cluster == "all":
         for cluster_number in set(toas["clusters"]):
-            phase_connector(toas, model, connection_filter, cluster_number)
+            phase_connector(
+                toas, model, connection_filter, cluster_number, mjds_total, **kwargs
+            )
+        return True
+
+    if mjds_total is None:
+        mjds_total = toas.get_mjds().value
+    if "clusters" not in toas.table.columns:
+        toas.table["clusters"] = toas.get_clusters()
+    if "pulse_number" not in toas.table.colnames:
+        toas.compute_pulse_numbers(model)
+    if "delta_pulse_number" not in toas.table.colnames:
+        toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
+
+    residuals_total = pint.residuals.Residuals(toas, model).calc_phase_resids()
     t = deepcopy(toas)
     cluster_mask = t.table["clusters"] == cluster
-    cluster_toas = t.select(cluster_mask)
+    t.select(cluster_mask)
+    if len(t) == 1:  # no phase wrapping possible
+        return True
 
-    residuals = pint.residuals.Residuals(t, model).calc_phase_resids()
-    if mjds_total is not None:
-        mjds_total = t.get_mjds().value
+    residuals = residuals_total[cluster_mask]
     mjds = mjds_total[cluster_mask]
 
     if connection_filter == "linear":
-        residuals2 = np.concatenate((np.zeros(1),residuals))
-        toa_slopes = np.zeros(len(mjds) - 1)
-        for i in range(len(mjds) - 1):
-            slope = (residuals[i + 1] - residuals[i]) / (mjds[i + 1] - mjds[i])
-            toa_slopes[i] = slope
+        # residuals_dif = np.concatenate((residuals, np.zeros(1))) - np.concatenate(
+        #     (np.zeros(1), residuals)
+        # )
+        residuals_dif = residuals[1:] - residuals[:-1]
+        # "normalize" to speed up computation (it is slower on larger numbers)
+        residuals_dif_normalized = residuals_dif / max(residuals_dif)
 
+        # This is the filter for phase connected within a cluster
+        if np.all(residuals_dif_normalized >= 0) or np.all(
+            residuals_dif_normalized <= 0
+        ):
+            return True
+
+        # another condition that means phase connection
+        if kwargs.get("wraps") is True and max(np.abs(residuals_dif)) < 0.4:
+            return True
+        # attempt to fix the phase wraps, then run recursion to either fix it again
+        # or verify it is fixed
+
+        biggest = 0
+        location_of_biggest = -1
+        biggest_is_pos = True
+        was_pos = True
+        count = 0
+        for i, is_pos in enumerate(residuals_dif_normalized >= 0):
+            if is_pos and was_pos or (not is_pos and not was_pos):
+                count += 1
+                was_pos = is_pos
+            elif is_pos or was_pos:  # slope flipped
+                if count > biggest:
+                    biggest = count
+                    location_of_biggest = i - 1
+                    biggest_is_pos = is_pos
+                count = 1
+                was_pos = is_pos
+            # do this check one last time in case the last point is part of the
+            # longest series of adjacent slopes
+            if count >= biggest and np.abs(residuals_dif_normalized[i]) < np.abs(
+                residuals_dif_normalized[i - 1]
+            ):
+                biggest = count
+                # not i - 1 because that last point is like the (i + 1)th element
+                location_of_biggest = i
+                # flipping slopes
+                biggest_is_pos = is_pos
+        if biggest_is_pos:
+            sign = 1
+        else:
+            sign = -1
+        # everything to the left move down if positive
+        t.table["delta_pulse_number"][: location_of_biggest - biggest + 1] = -1 * sign
+        # everything to the right move up if positive
+        t.table["delta_pulse_number"][location_of_biggest + 2 :] = sign
+
+        # finally, apply these to the original set
+        toas.table[cluster_mask] = t.table
+
+    # run it again, will return true and end the recursion if nothing needs to be fixed
+    phase_connector(toas, model, connection_filter, cluster)
 
 
 def set_F1_lim(args, parfile):
