@@ -8,6 +8,7 @@ import pint.utils
 import pint.models.model_builder as mb
 import pint.random_models
 from pint.phase import Phase
+from pint.fitter import WLSFitter
 from copy import deepcopy
 from collections import OrderedDict
 from astropy import log
@@ -20,6 +21,10 @@ import operator
 import time
 from pathlib import Path
 import socket
+
+
+class StartingJumpError(Exception):
+    pass
 
 
 def starting_points(toas, args=None):
@@ -172,7 +177,12 @@ def phase_connector(
     if cluster == "all":
         for cluster_number in set(toas["clusters"]):
             phase_connector(
-                toas, model, connection_filter, cluster_number, mjds_total, **kwargs
+                toas,
+                model,
+                connection_filter,
+                cluster_number,
+                mjds_total,
+                **kwargs,
             )
         return True
 
@@ -185,7 +195,10 @@ def phase_connector(
     if "delta_pulse_number" not in toas.table.colnames:
         toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
 
+    # this must be recalculated evertime because the residuals change
+    # if a delta_pulse_number is added
     residuals_total = pint.residuals.Residuals(toas, model).calc_phase_resids()
+
     t = deepcopy(toas)
     cluster_mask = t.table["clusters"] == cluster
     t.select(cluster_mask)
@@ -194,6 +207,12 @@ def phase_connector(
 
     residuals = residuals_total[cluster_mask]
     mjds = mjds_total[cluster_mask]
+    # if True: # for debugging
+    #     print("#" * 100)
+    #     plt.plot(mjds, residuals)
+    #     plt.show()
+    # print(cluster_mask)
+    # print(residuals)
 
     if connection_filter == "linear":
         # residuals_dif = np.concatenate((residuals, np.zeros(1))) - np.concatenate(
@@ -212,6 +231,7 @@ def phase_connector(
         # another condition that means phase connection
         if kwargs.get("wraps") is True and max(np.abs(residuals_dif)) < 0.4:
             return True
+        # print(max(np.abs(residuals_dif)))
         # attempt to fix the phase wraps, then run recursion to either fix it again
         # or verify it is fixed
 
@@ -255,10 +275,16 @@ def phase_connector(
 
     if connection_filter == "np.unwrap":
         # use the np.unwrap function somehow
-        pass
+        residuals_unwrapped = np.unwrap(np.array(residuals), period=1)
+        t.table["delta_pulse_number"] = residuals_unwrapped - residuals
+        # print(t.table["delta_pulse_number"])
+        toas.table[cluster_mask] = t.table
+
+        # this filter currently does not check itself
+        return True
 
     # run it again, will return true and end the recursion if nothing needs to be fixed
-    phase_connector(toas, model, connection_filter, cluster)
+    phase_connector(toas, model, connection_filter, cluster, mjds_total, **kwargs)
 
 
 def set_F1_lim(args, parfile):
@@ -517,27 +543,144 @@ def main(argv=None):
     all_toas_beggining = deepcopy(toas)
 
     pulsar_name = str(mb.get_model(parfile).PSR.value)
-    if not Path(f"alg_saves/{pulsar_name}").exists():
-        Path(f"alg_saves/{pulsar_name}").mkdir(parents=True)
-    os.chdir(Path(f"alg_saves/{pulsar_name}"))
+    alg_saves_Path = Path(f"alg_saves/{pulsar_name}")
+    if not alg_saves_Path.exists():
+        alg_saves_Path.mkdir(parents=True)
 
     set_F1_lim(args, parfile)
 
-    mask_list, starting_cluster_list = starting_points(t)
+    mask_list, starting_cluster_list = starting_points(toas)
     for mask_number, mask in enumerate(mask_list):
         starting_cluster = starting_cluster_list[mask_number]
         print(
-            f"Mask number {mask_number} has started. Starting cluster = {starting_cluster}"
+            f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
         )
+
+        mask_Path = Path(f"mask{mask_number}")
+        alg_saves_mask_Path = alg_saves_Path / mask_Path
+        if not alg_saves_mask_Path.exists():
+            alg_saves_mask_Path.mkdir()
 
         m = mb.get_model(parfile)
         m, t = JUMP_adder_begginning_cluster(
             mask,
             toas,
             m,
-            output_timfile=Path(f"{pulsar_name}_mask{mask_number}_{start}.tim"),
-            output_parfile=Path(f"{pulsar_name}_mask{mask_number}_{start}.par"),
+            output_timfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.tim"),
+            output_parfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.par"),
         )
+
+        # start fitting for main binary parameters immediately
+        if args.binary_model.lower() == "ell1":
+            for param in ["PB", "TASC", "A1"]:
+                getattr(m, param).frozen = False
+
+        # a copy, with the flags included
+        base_toas = deepcopy(t)
+
+        # the following before the while loop is the very first fit with only one cluster not JUMPed
+
+        phase_connector(
+            t,
+            m,
+            "linear",
+            cluster="all",
+            mjds_total=mjds_total,
+            wraps=True,
+        )
+
+        print("Fitting...")
+        f = WLSFitter(t, m)
+        print("BEFORE:", f.get_fitparams())
+        print(f.fit_toas())
+
+        print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
+        print("RMS in phase is", f.resids.phase_resids.std())
+        print("RMS in time is", f.resids.time_resids.std().to(u.us))
+        print("\n Best model is:")
+        print(f.model.as_parfile())
+
+        t.table["delta_pulse_number"] = 0
+        t.compute_pulse_numbers(f.model)
+        # update the model
+        m = f.model
+
+        fig, ax = plt.subplots()
+        ax.plot(mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids())
+        ax.set_xlabel("MJD")
+        ax.set_ylabel("Residual (phase)")
+        plt.savefig(
+            alg_saves_mask_Path / Path(f"{pulsar_name}_iteration{iteration}.png")
+        )
+
+        # something is wrong if the reduced chisq is greater that 3 at this stage,
+        # so APTB should not waste time attempting to coerce a solution
+        if pint.residuals.Residuals(t, m).chi2_reduced > 3:
+            plt.plot(
+                mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids(), "o"
+            )
+            plt.show()
+            response = input(
+                f"The reduced chisq is {pint.residuals.Residuals(t, m).chi2_reduced}.\n"
+                + "This is adnormally high, should APTB continue anyway? (y/n)"
+            )
+            if response.lower() != "y":
+                raise StartingJumpError(
+                    "Reduced chisq adnormally high, quitting program."
+                )
+
+        iteration = 0
+        while True:
+            # the main loop of the algorithm
+            iteration += 1
+            # print(f"iteration: {iteration}", end="#" * 200 + "\n")
+
+            residuals_total = pint.residuals.Residuals(t, m).calc_phase_resids()
+            # temp_mask = t.table["clusters"] == 9
+            # plt.plot(mjds_total[temp_mask], residuals_total[temp_mask], 'o')
+            # plt.show()
+            # want to phase connect toas within a cluster first:
+            phase_connector(
+                t,
+                m,
+                "linear",
+                cluster="all",
+                mjds_total=mjds_total,
+                wraps=True,
+            )
+
+            fig, ax = plt.subplots(3, 1, figsize=(15, 10))
+            y1 = pint.residuals.Residuals(t, m).calc_phase_resids()
+
+            print("Fitting...")
+            f = WLSFitter(t, m)
+            print("BEFORE:", f.get_fitparams())
+            print(f.fit_toas())
+
+            print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
+            print("RMS in phase is", f.resids.phase_resids.std())
+            print("RMS in time is", f.resids.time_resids.std().to(u.us))
+            print("\n Best model is:")
+            print(f.model.as_parfile())
+
+            t.table["delta_pulse_number"] = 0
+            t.compute_pulse_numbers(f.model)
+            # residuals = pint.residuals.Residuals(t, f.model)
+
+            ###
+            residuals = pint.residuals.Residuals(t, f.model)
+            # y0 = residuals_total
+            # ms = 2
+            # ax[0].plot(mjds_total, y0, "o", markersize=ms)
+            # ax[1].plot(mjds_total, y1, "o", markersize=ms)
+            # ax[2].plot(mjds_total, y2, "o", markersize=ms)
+            plt.plot()
+            plt.savefig(
+                alg_saves_mask_Path / Path(f"{pulsar_name}_iteration{iteration}.par")
+            )
+
+            break
+        break
 
 
 if __name__ == "__main__":

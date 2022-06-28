@@ -1201,7 +1201,7 @@ def main(argv=None):
     original_path = Path.cwd()
     data_path = Path(args.data_path)
 
-    #### FIXME When fulled implemented, DELETE the following line
+    #### FIXME When fulled implemented, DELETE the following lines
     if socket.gethostname()[0] == "J":
         data_path = Path.cwd()
     else:
@@ -1373,7 +1373,7 @@ def main(argv=None):
                 )
 
             # if difference in phase is >0.15, and not a bad point, try phase wraps to see if point fits better wrapped
-            if np.abs(diff) > args.check_bp_min_diff and skip_phases == False:
+            if np.abs(diff) > args.check_bp_min_diff and skip_phases is False:
                 f_phases = []
                 t_phases = []
                 t_others_phases = []
