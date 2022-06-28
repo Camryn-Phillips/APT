@@ -13,7 +13,7 @@ This script is intended to determine how many soltuions APT succesfully solved.
 original_path = Path.cwd()
 
 
-def model_checker(number: int = None, path: Path = Path("/users/jdtaylor/Jackson/APT/binary3_4")):
+def model_checker(number: int = None, path: Path = Path("/users/jdtaylor/Jackson/APT/binary_test_data/binary6_1")):
     """
     Checks if two parameter files give indetical timing solutions
     # FIXME This can be easily implented in the general case if desired.

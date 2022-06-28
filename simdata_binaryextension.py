@@ -30,7 +30,7 @@ def ELL1(A1, EPS1, EPS2, PB, TASC, span) -> dict:
     Sets the parameters for a binary pulsar with a low eccentricity.
     See pint.models.binary_ell1.py and pint.models.pulsar_binary.py for more info.
     """
-    e = r.uniform(1e-5, 3e-2)  # eccentricity
+    e = r.uniform(1e-7, 7e-4)  # eccentricity
     w = r.uniform(0, 2 * np.pi)  # longitude of periastron
     if A1 is None or A1 == "None":
         # cosi = r.uniform(0, 1)

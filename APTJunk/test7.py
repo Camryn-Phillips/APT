@@ -21,16 +21,18 @@ from pathlib import Path
 import socket
 
 from APT_binary import JUMP_adder_begginning_cluster, starting_points
+data_path = "binary6_1"
+suffix = data_path.split("_")[-1]
 
 #os.chdir("/data1/people/jdtaylor/fake_data")
-os.chdir(Path("/users/jdtaylor/Jackson/APT/binary_test_data/binary4_100"))
+os.chdir(Path(f"/users/jdtaylor/Jackson/APT/binary_test_data/{data_path}"))
 
-parfile = "fake_100.par"
-timfile = "fake_100.tim"
+parfile = f"fake_{suffix}.par"
+timfile = f"fake_{suffix}.tim"
 
 m, t = pint.models.get_model_and_toas(parfile, timfile)
 
 mask_list, cluster_list = starting_points(toas=t)
 mask = mask_list[0]
 
-m, t = JUMP_adder_begginning_cluster(mask, t, m, "fake_100.jump.par", "fake_100.jump.tim")
+m, t = JUMP_adder_begginning_cluster(mask, t, m, f"fake_{suffix}.jump.par", f"fake_{suffix}.jump.tim")
