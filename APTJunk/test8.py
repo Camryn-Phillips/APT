@@ -23,7 +23,7 @@ import sys
 
 from APT_binary import JUMP_adder_begginning_cluster, starting_points
 
-os.chdir(Path("/users/jdtaylor/Jackson/APT/binary_test_data/binary4_100"))
+os.chdir(Path("/users/jdtaylor/Jackson/APT/binary_test_data/binary5_77"))
 
 output_parfile = sys.argv[1]
 
@@ -34,7 +34,7 @@ with open(output_parfile, "w") as parfile:
         if "JUMP" not in line:
             parfile.write(line + "\n")
 
-timfile = "fake_100.jump.tim"
+timfile = "fake_77.jump.tim"
 model, t = pint.models.get_model_and_toas(output_parfile, timfile)
 flag_name = "jump_tim"
 masks, clusters = starting_points(t)
