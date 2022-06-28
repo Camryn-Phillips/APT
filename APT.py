@@ -95,7 +95,7 @@ def starting_points(toas, start_type):
     return mask_list[:5]
 
 
-def get_closest_group(all_toas, fit_toas, base_TOAs):
+def get_closest_cluster(all_toas, fit_toas, base_TOAs):
     """
     find the closest group of TOAs to the given toa(s)
 
@@ -1319,7 +1319,7 @@ def main(argv=None):
             t_others = deepcopy(base_TOAs)
 
             # calculate the group closest to the fit toas, pass deepcopies to prevent unintended pass by reference
-            closest_group, dist = get_closest_group(
+            closest_group, dist = get_closest_cluster(
                 deepcopy(t_others), deepcopy(t), deepcopy(base_TOAs)
             )
             print("closest group:", closest_group)
