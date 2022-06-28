@@ -1,0 +1,62 @@
+# Created: 2022-06-27T17:05:58.044560
+# PINT_version: 0.8.8+257.ga74b41d2
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSR                                fake_1
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+START              56000.0000000557658218
+FINISH             56545.5649228111477778
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  108
+CHI2                    84.82683755360199
+RAJ                     21:30:32.16520287 1 0.22030023469340737075
+DECJ                   -15:17:06.91254184 1 9.53214940866903681638
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                   5.628030299546038497 1 2.2433908564165248562e-10
+F1              -1.0000035144471299134e-12 1 1.012031869529765433e-17
+F2                                    0.0
+PEPOCH             56000.0000000000000000
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+DM1                                   0.0
+BINARY                               ELL1
+PB                  17.403585584571881558 1 1.4363123299312841974e-05
+A1                     3.2941006906243673 1 0.000222881074504469
+TASC               56257.8338767996126251 1 0.00014548311222509322134
+EPS1            -0.0046273445494669141086 1 0.00015315522995857627623
+EPS2             -0.009199786594616388677 1 0.00011443968534946189451
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0
+JUMP            -tim_jump 1                       0.0 0 0.0
+JUMP            -tim_jump 2                       0.0 0 0.0
+JUMP            -tim_jump 3                       0.0 0 0.0
+JUMP            -tim_jump 4                       0.0 0 0.0
+JUMP            -tim_jump 5                       0.0 0 0.0
+JUMP            -tim_jump 6                       0.0 0 0.0
+JUMP            -tim_jump 7                       0.0 0 0.0
+JUMP            -tim_jump 8                       0.0 0 0.0
+JUMP            -tim_jump 9                       0.0 0 0.0
+JUMP            -tim_jump 10                       0.0 0 0.0
+JUMP            -tim_jump 11                       0.0 0 0.0
+JUMP            -tim_jump 12                       0.0 0 0.0
+JUMP            -tim_jump 13                       0.0 0 0.0
+JUMP            -tim_jump 14                       0.0 0 0.0
+JUMP            -tim_jump 15                       0.0 0 0.0
+JUMP            -tim_jump 16                       0.0 0 0.0
+JUMP            -tim_jump 17                       0.0 0 0.0
+JUMP            -tim_jump 18                       0.0 0 0.0
+JUMP            -tim_jump 19                       0.0 0 0.0
+JUMP            -tim_jump 20                       0.0 0 0.0
+JUMP            -tim_jump 21                       0.0 0 0.0
+JUMP            -tim_jump 22                       0.0 0 0.0
+JUMP            -tim_jump 23                       0.0 0 0.0
+JUMP            -tim_jump 24                       0.0 0 0.0
+JUMP            -tim_jump 25                       0.0 0 0.0
+JUMP            -tim_jump 26                       0.0 0 0.0

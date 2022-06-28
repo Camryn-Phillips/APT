@@ -253,6 +253,10 @@ def phase_connector(
         # finally, apply these to the original set
         toas.table[cluster_mask] = t.table
 
+    if connection_filter == "np.unwrap":
+        # use the np.unwrap function somehow
+        pass
+
     # run it again, will return true and end the recursion if nothing needs to be fixed
     phase_connector(toas, model, connection_filter, cluster)
 
