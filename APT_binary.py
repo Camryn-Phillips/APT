@@ -21,7 +21,7 @@ import operator
 import time
 from pathlib import Path
 import socket
-from APT import get_closest_cluster
+from APT import get_closest_cluster, solution_compare, bad_points
 
 
 class StartingJumpError(Exception):
@@ -52,7 +52,6 @@ def starting_points(toas, args=None):
     # f.fit_toas()
     i = -1
     while score_list.any():
-        # break
         i += 1
         # print(i)
         hsi = np.argmax(score_list)
@@ -325,11 +324,134 @@ def save_state(
         )
         ax.set_xlabel("MJD")
         ax.set_ylabel("Residual (phase)")
-        ax.grid(axis="x")
+        ax.grid()
         if show_plot:
             plt.show()
         if save_plot:
             fig.savefig(folder / Path(f"{pulsar_name}_{iteration}.png"))
+
+
+def Ftest_param(r_model, fitter, param_name):
+    """
+    do an Ftest comparing a model with and without a particular parameter added
+
+    Note: this is NOT a general use function - it is specific to this code and cannot be easily adapted to other scripts
+    :param r_model: timing model to be compared
+    :param fitter: fitter object containing the toas to compare on
+    :param param_name: name of the timing model parameter to be compared
+    :return
+    """
+    # read in model and toas
+    m_plus_p = deepcopy(r_model)
+    toas = deepcopy(fitter.toas)
+
+    # set given parameter to unfrozen
+    getattr(m_plus_p, param_name).frozen = False
+
+    # make a fitter object with the chosen parameter unfrozen and fit the toas using the model with the extra parameter
+    f_plus_p = pint.fitter.WLSFitter(toas, m_plus_p)
+    f_plus_p.fit_toas()
+
+    # calculate the residuals for the fit with (m_plus_p_rs) and without (m_rs) the extra parameter
+    m_rs = pint.residuals.Residuals(toas, fitter.model)
+    m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model)
+
+    # calculate the Ftest, comparing the chi2 and degrees of freedom of the two models
+    Ftest_p = pint.utils.FTest(
+        float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof
+    )
+    # The Ftest determines how likely (from 0. to 1.) that improvement due to the new parameter is due to chance and not necessity
+    # Ftests close to zero mean the parameter addition is necessary, close to 1 the addition is unnecessary,
+    # and NaN means the fit got worse when the parameter was added
+
+    # if the Ftest returns NaN (fit got worse), iterate the fit until it improves to a max of 3 iterations.
+    # It may have gotten stuck in a local minima
+    counter = 0
+
+    while not Ftest_p and counter < 3:
+        counter += 1
+
+        f_plus_p.fit_toas()
+        m_plus_p_rs = pint.residuals.Residuals(toas, f_plus_p.model)
+
+        # recalculate the Ftest
+        Ftest_p = pint.utils.FTest(
+            float(m_rs.chi2), m_rs.dof, float(m_plus_p_rs.chi2), m_plus_p_rs.dof
+        )
+
+    # print the Ftest for the parameter and return the value of the Ftest
+    print("Ftest" + param_name + ":", Ftest_p)
+    return Ftest_p
+
+
+def do_Ftests(t, m, mask_with_closest, args):
+    """
+    Does the Ftest on the neccesarry parameters
+    t : toas object
+    m : model object
+    mask_with_closest : the clusters
+    args : command line arguments
+
+    Returns
+    m (with particular parameters now potentially unfrozen)
+    """
+
+    # fit toas with new model
+    f = pint.fitter.WLSFitter(t, m)
+    f.fit_toas()
+
+    t_copy = deepcopy(t)
+    t_copy.select(mask_with_closest)
+
+    # calculate the span of fit toas for comparison to minimum parameter spans
+    span = t_copy.get_mjds().max() - t_copy.get_mjds().min()
+    print("Current fit TOAs span:", span)
+
+    Ftests = dict()
+    f_params = []
+    # TODO: need to take into account if param isn't setup in model yet
+
+    # make list of already fit parameters
+    for param in m.params:
+        if getattr(m, param).frozen == False:
+            f_params.append(param)
+
+    # if span is longer than minimum parameter span and parameter hasn't been added yet, do Ftest to see if parameter should be added
+    if "RAJ" not in f_params and span > args.RAJ_lim * u.d:
+        Ftest_R = Ftest_param(m, f, "RAJ")
+        Ftests[Ftest_R] = "RAJ"
+
+    if "DECJ" not in f_params and span > args.DECJ_lim * u.d:
+        Ftest_D = Ftest_param(m, f, "DECJ")
+        Ftests[Ftest_D] = "DECJ"
+
+    if "F1" not in f_params and span > args.F1_lim * u.d:
+        Ftest_F = Ftest_param(m, f, "F1")
+        Ftests[Ftest_F] = "F1"
+
+    if args.binary_model.lower() == "ell1":
+        if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
+            Ftest_F = Ftest_param(m, f, "EPS1")
+            Ftests[Ftest_F] = "EPS1"
+        if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
+            Ftest_F = Ftest_param(m, f, "EPS2")
+            Ftests[Ftest_F] = "EPS2"
+
+    # remove possible boolean elements from Ftest returning False if chi2 increases
+    Ftests_keys = [key for key in Ftests.keys() if type(key) != bool]
+
+    # if no Ftests performed, continue on without change
+    if not bool(Ftests_keys):
+        if span > 100 * u.d:
+            print("F0, RAJ, DECJ, and F1 have all been added")
+
+    # if smallest Ftest of those calculated is less than the given limit, add that parameter to the model. Otherwise add no parameters
+    elif min(Ftests_keys) < args.Ftest_lim:
+        add_param = Ftests[min(Ftests_keys)]
+        print("adding param ", add_param, " with Ftest ", min(Ftests_keys))
+        getattr(m, add_param).frozen = False
+
+    return m
 
 
 def set_F1_lim(args, parfile):
@@ -351,6 +473,14 @@ def set_F1_lim(args, parfile):
         # rearranged equation [delta-phase = (F1*span^2)/2], span in seconds.
         # calculates span (in days) for delta-phase to reach 0.35 due to F1
         args.F1_lim = np.sqrt(0.35 * 2 / F1) / 86400.0
+
+
+def set_binary_pars_lim(args):
+    if args.binary_model.lower() == "ell1":
+        args.EPS1_lim = 75
+        args.EPS2_lim = 75
+
+    return args
 
 
 def APT_argument_parse(parser, argv):
@@ -600,11 +730,13 @@ def main(argv=None):
     mask_list, starting_cluster_list = starting_points(toas)
     for mask_number, mask in enumerate(mask_list):
         starting_cluster = starting_cluster_list[mask_number]
+        if starting_cluster != 0:
+            continue
         print(
             f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
         )
 
-        mask_Path = Path(f"mask{mask_number}")
+        mask_Path = Path(f"mask{mask_number}_cluster{starting_cluster}")
         alg_saves_mask_Path = alg_saves_Path / mask_Path
         if not alg_saves_mask_Path.exists():
             alg_saves_mask_Path.mkdir()
@@ -619,6 +751,7 @@ def main(argv=None):
         )
         t.compute_pulse_numbers(m)
         args.binary_model = m.BINARY.value
+        args = set_binary_pars_lim(args)
 
         # start fitting for main binary parameters immediately
         if args.binary_model.lower() == "ell1":
@@ -697,6 +830,7 @@ def main(argv=None):
 
         # mask_with_closest will be everything not JUMPed, as well as the next clusters
         # to be de JUMPed
+        bad_mjds = []
         mask_with_closest = deepcopy(mask)
         iteration = 0
         while True:
@@ -707,9 +841,18 @@ def main(argv=None):
 
             # find the closest cluster and turn off its JUMP
             closest_cluster, dist = get_closest_cluster(
-                deepcopy(t), deepcopy(t[mask]), deepcopy(t)
+                deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
             )
-            mask_with_closest = np.logical_or(mask, t["clusters"] == closest_cluster)
+            print("closest group:", closest_cluster)
+            if closest_cluster is None:
+                # end the program
+                break
+
+            mask_with_closest = np.logical_or(
+                mask, t.table["clusters"] == closest_cluster
+            )
+
+            # TODO remove the JUMPs from closest clusters
 
             phase_connector(
                 t,
@@ -722,18 +865,130 @@ def main(argv=None):
                 wraps=True,
             )
 
+            f = pint.fitter.WLSFitter(t, m)
+            f.fit_toas()
+            t.table["delta_pulse_number"] = 0
+            t.compute_pulse_numbers(f.model)
+            m = f.model
+
             # use random models, or design matrix method to determine if next
             # cluster is within the error space. If the next cluster is not
             # within the error space, check for phase wraps.
+            # TODO add pontential phase wraps here
+
+            # TODO add check_bad_points here-ish
 
             # use the F-test to determine if another parameter should be fit
 
+            m = do_Ftests(t, m, mask_with_closest, args)
+
             # fit
+            f = pint.fitter.WLSFitter(t, m)
+            f.fit_toas()
+
+            m = f.model
+
+            save_state(
+                m,
+                t,
+                pulsar_name,
+                folder=alg_saves_mask_Path,
+                iteration=iteration,
+                save_plot=True,
+            )
 
             # repeat
 
+        # try fitting with any remaining unfit parameters included and see if the fit is better for it
+        m_plus = deepcopy(m)
+        getattr(m_plus, "RAJ").frozen = False
+        getattr(m_plus, "DECJ").frozen = False
+        getattr(m_plus, "F1").frozen = False
+
+        if args.binary_model.lower() == "ell1":
+            getattr(m_plus, "EPS1").frozen = False
+            getattr(m_plus, "EPS2").frozen = False
+
+        f_plus = pint.fitter.WLSFitter(t, m_plus)
+        f_plus.fit_toas()
+
+        # residuals
+        r = pint.residuals.Residuals(t, f.model)
+        r_plus = pint.residuals.Residuals(t, f_plus.model)
+        if r_plus.chi2 <= r.chi2:
+            f = deepcopy(f_plus)
+
+        # save final model as .fin file
+        print("Final Model:\n", f.model.as_parfile())
+
+        # save as .fin
+        fin_name = f.model.PSR.value + ".fin"
+        with open(fin_name, "w") as finfile:
+            finfile.write(f.model.as_parfile())
+
+        # plot final residuals if plot_final True
+        xt = t.get_mjds()
+        plt.clf()
+        fig, ax = plt.subplots()
+        twinx = ax.twinx()
+        ax.errorbar(
+            xt.value,
+            pint.residuals.Residuals(t, f.model).time_resids.to(u.us).value,
+            t.get_errors().to(u.us).value,
+            fmt=".b",
+            label="post-fit (time)",
+        )
+        twinx.errorbar(
+            xt.value,
+            pint.residuals.Residuals(t, f.model).phase_resids,
+            t.get_errors().to(u.us).value * float(f.model.F0.value) / 1e6,
+            fmt=".b",
+            label="post-fit (phase)",
+        )
+        ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
+        ax.set_xlabel("MJD")
+        ax.set_ylabel("Residual (us)")
+        twinx.set_ylabel("Residual (phase)", labelpad=15)
+        span = (0.5 / float(f.model.F0.value)) * (10**6)
+        plt.grid()
+
+        time_end_main = time.monotonic()
+        print(
+            f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
+        )
+        if args.plot_final:
+            plt.show()
+
+        fig.savefig(
+            alg_saves_mask_Path / Path(f"{pulsar_name}_final.png"), bbox_inches="tight"
+        )
+        plt.clf()
+
+        # if success, stop trying and end program
+        if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
+            print(
+                "SUCCESS! A solution was found with reduced chi2 of",
+                pint.residuals.Residuals(t, f.model).chi2_reduced,
+                "after",
+                iteration,
+                "iterations",
+            )
+            if args.parfile_compare:
+                identical_solution = solution_compare(
+                    args.parfile_compare, f"{f.model.PSR.value}.fin", timfile
+                )
+                print(
+                    f"\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n"
+                )
+            print(f"The input parameters for this fit were:\n {args}")
+            print(
+                f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
+            )
+            starting_TOAs = t[mask]
+            print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
+            print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
+            print(f"TOAs Removed (MJD): {bad_mjds}")
             break
-        break
 
 
 if __name__ == "__main__":
