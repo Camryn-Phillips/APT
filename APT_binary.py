@@ -159,6 +159,7 @@ def phase_connector(
     connection_filter: str = "linear",
     cluster: int = "all",
     mjds_total: np.ndarray = None,
+    residuals=None,
     **kwargs,
 ):
     """
@@ -176,6 +177,20 @@ def phase_connector(
     """
     # print(f"cluster {cluster}")
     if cluster == "all":
+        if connection_filter == "np.unwrap":
+            t = deepcopy(toas)
+            mask_with_closest = kwargs.get(
+                "mask_with_closest", np.zeros(len(toas), dtype=bool)
+            )
+            t.select(~mask_with_closest)
+            residuals_unwrapped = np.unwrap(
+                np.array(residuals[~mask_with_closest]), period=1
+            )
+            t.table["delta_pulse_number"] = (
+                residuals_unwrapped - residuals[~mask_with_closest]
+            )
+            toas.table[~mask_with_closest] = t.table
+            return True
         for cluster_number in set(toas["clusters"]):
             phase_connector(
                 toas,
@@ -183,7 +198,7 @@ def phase_connector(
                 connection_filter,
                 cluster_number,
                 mjds_total,
-                **kwargs,
+                residuals**kwargs,
             )
         return True
 
@@ -230,7 +245,7 @@ def phase_connector(
             return True
 
         # another condition that means phase connection
-        if kwargs.get("wraps") is True and max(np.abs(residuals_dif)) < 0.4:
+        if kwargs.get("wraps") and max(np.abs(residuals_dif)) < 0.4:
             return True
         # print(max(np.abs(residuals_dif)))
         # attempt to fix the phase wraps, then run recursion to either fix it again
@@ -285,23 +300,36 @@ def phase_connector(
         return True
 
     # run it again, will return true and end the recursion if nothing needs to be fixed
-    phase_connector(toas, model, connection_filter, cluster, mjds_total, **kwargs)
+    phase_connector(
+        toas, model, connection_filter, cluster, mjds_total, residuals, **kwargs
+    )
 
 
-def save_state(m, t, pulsar_name, iteration, folder, plot=False):
+def save_state(
+    m, t, pulsar_name, iteration, folder, save_plot=False, show_plot=False, **kwargs
+):
     m = deepcopy(m)
     t = deepcopy(t)
 
     t.write_TOA_file(folder / Path(f"{pulsar_name}_{iteration}.tim"))
-    with open(folder / Path(f"{pulsar_name}_{iteration}.par")) as file:
+    with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
         file.write(m.as_parfile())
 
-    if plot is True:
-        fig, ax = plt.subplots()
-        ax.plot(t.get_mjds().value, pint.residuals.Residuals(t, m).calc_phase_resids())
+    if save_plot or show_plot:
+        fig, ax = plt.subplots(figsize=(12, 7))
+        ax.plot(
+            t.get_mjds().value,
+            pint.residuals.Residuals(t, m).calc_phase_resids(),
+            ".",
+            markersize=kwargs.get("markersize", 10),
+        )
         ax.set_xlabel("MJD")
         ax.set_ylabel("Residual (phase)")
-        plt.savefig(folder / Path(f"{pulsar_name}_{iteration}.png"))
+        ax.grid(axis="x")
+        if show_plot:
+            plt.show()
+        if save_plot:
+            fig.savefig(folder / Path(f"{pulsar_name}_{iteration}.png"))
 
 
 def set_F1_lim(args, parfile):
@@ -329,9 +357,10 @@ def APT_argument_parse(parser, argv):
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
     parser.add_argument(
-        "binary_model",
+        "--binary_model",
         help="which binary pulsar model to use.",
         choices=["ELL1", "ell1"],
+        default=None,
     )
     parser.add_argument(
         "--starting_points",
@@ -588,6 +617,8 @@ def main(argv=None):
             output_timfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.tim"),
             output_parfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.par"),
         )
+        t.compute_pulse_numbers(m)
+        args.binary_model = m.BINARY.value
 
         # start fitting for main binary parameters immediately
         if args.binary_model.lower() == "ell1":
@@ -600,14 +631,27 @@ def main(argv=None):
         # the following before the while loop is the very first fit with only one cluster not JUMPed
 
         # want to phase connect toas within a cluster first:
+        residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
+
         phase_connector(
             t,
             m,
-            "linear",
+            "np.unwrap",
             cluster="all",
             mjds_total=mjds_total,
+            residuals=residuals_start,
             wraps=True,
         )
+
+        # save_state(
+        #     m,
+        #     t,
+        #     pulsar_name,
+        #     folder=alg_saves_mask_Path,
+        #     iteration="test",
+        #     show_plot=True,
+        # )
+        # raise Exception("stop")
 
         print("Fitting...")
         f = WLSFitter(t, m)
@@ -626,7 +670,14 @@ def main(argv=None):
         # update the model
         m = f.model
 
-        save_state(m, t, pulsar_name, folder=alg_saves_mask_Path, iteration="start")
+        save_state(
+            m,
+            t,
+            pulsar_name,
+            folder=alg_saves_mask_Path,
+            iteration="start",
+            save_plot=True,
+        )
 
         # something is certaintly wrong if the reduced chisq is greater that 3 at this stage,
         # so APTB should not waste time attempting to coerce a solution
@@ -644,24 +695,42 @@ def main(argv=None):
                     "Reduced chisq adnormally high, quitting program."
                 )
 
+        # mask_with_closest will be everything not JUMPed, as well as the next clusters
+        # to be de JUMPed
+        mask_with_closest = deepcopy(mask)
         iteration = 0
         while True:
             # the main loop of the algorithm
             iteration += 1
 
+            residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
+
             # find the closest cluster and turn off its JUMP
             closest_cluster, dist = get_closest_cluster(
                 deepcopy(t), deepcopy(t[mask]), deepcopy(t)
             )
+            mask_with_closest = np.logical_or(mask, t["clusters"] == closest_cluster)
 
             phase_connector(
                 t,
                 m,
-                "linear",
+                "np.unwrap",
                 cluster="all",
                 mjds_total=mjds_total,
+                residuals=residuals,
+                mask_with_closest=mask_with_closest,
                 wraps=True,
             )
+
+            # use random models, or design matrix method to determine if next
+            # cluster is within the error space. If the next cluster is not
+            # within the error space, check for phase wraps.
+
+            # use the F-test to determine if another parameter should be fit
+
+            # fit
+
+            # repeat
 
             break
         break
