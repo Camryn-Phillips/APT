@@ -175,6 +175,12 @@ def phase_connector(
     True
     """
     # print(f"cluster {cluster}")
+
+    # this function can perform the neccesary actions on all clusters using either
+    # np.unwrap or recursion
+    toas.compute_pulse_numbers(model)
+    toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
+
     if cluster == "all":
         if connection_filter == "np.unwrap":
             t = deepcopy(toas)
@@ -197,7 +203,8 @@ def phase_connector(
                 connection_filter,
                 cluster_number,
                 mjds_total,
-                residuals**kwargs,
+                residuals,
+                **kwargs,
             )
         return True
 
@@ -205,10 +212,10 @@ def phase_connector(
         mjds_total = toas.get_mjds().value
     if "clusters" not in toas.table.columns:
         toas.table["clusters"] = toas.get_clusters()
-    if "pulse_number" not in toas.table.colnames:
-        toas.compute_pulse_numbers(model)
-    if "delta_pulse_number" not in toas.table.colnames:
-        toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
+    # if "pulse_number" not in toas.table.colnames:  ######
+    # toas.compute_pulse_numbers(model)
+    # if "delta_pulse_number" not in toas.table.colnames:
+    # toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
 
     # this must be recalculated evertime because the residuals change
     # if a delta_pulse_number is added
@@ -305,20 +312,46 @@ def phase_connector(
 
 
 def save_state(
-    m, t, pulsar_name, iteration, folder, save_plot=False, show_plot=False, **kwargs
+    m,
+    t,
+    pulsar_name,
+    iteration,
+    folder,
+    args,
+    save_plot=False,
+    show_plot=False,
+    **kwargs,
 ):
-    m = deepcopy(m)
+    m_copy = deepcopy(m)
     t = deepcopy(t)
 
     t.write_TOA_file(folder / Path(f"{pulsar_name}_{iteration}.tim"))
-    with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
-        file.write(m.as_parfile())
+    try:
+        with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
+            file.write(m_copy.as_parfile())
+    except ValueError as e:
+        if str(e)[:47] != "Projected semi-major axis A1 cannot be negative":
+            raise e
+        response = input(
+            f"\nA1 detected to be negative! Should APTB attempt to correct it. (y/n)"
+        )
+        if response.lower() != "y":
+            raise e
+        print(f"(A1 = {m_copy.A1.value} and TASC = {m_copy.TASC.value})\n")
+        if args.binary_model.lower() == "ell1":
+            # the fitter cannot distinguish between a sinusoid and the negative
+            # sinusoid shifted by a half period
+            m.A1.value = -m.A1.value
+            m.TASC.value = m.TASC.value + m.PB.value / 2
+            m_copy = deepcopy(m)
+            with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
+                file.write(m_copy.as_parfile())
 
     if save_plot or show_plot:
         fig, ax = plt.subplots(figsize=(12, 7))
         ax.plot(
             t.get_mjds().value,
-            pint.residuals.Residuals(t, m).calc_phase_resids(),
+            pint.residuals.Residuals(t, m_copy).calc_phase_resids(),
             ".",
             markersize=kwargs.get("markersize", 10),
         )
@@ -775,6 +808,15 @@ def main(argv=None):
             residuals=residuals_start,
             wraps=True,
         )
+        save_state(
+            m,
+            t,
+            pulsar_name,
+            args=args,
+            folder=alg_saves_mask_Path,
+            iteration="start_right_after_phase",
+            save_plot=True,
+        )
 
         # save_state(
         #     m,
@@ -789,7 +831,7 @@ def main(argv=None):
         print("Fitting...")
         f = WLSFitter(t, m)
         print("BEFORE:", f.get_fitparams())
-        print(f.fit_toas())
+        print(f.fit_toas(maxiter=1))
 
         print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
         print("RMS in phase is", f.resids.phase_resids.std())
@@ -800,13 +842,31 @@ def main(argv=None):
         # new model so need to update table
         t.table["delta_pulse_number"] = 0
         t.compute_pulse_numbers(f.model)
+
+        # doing this once more ensures the fit settles
+        save_state(
+            f.model,
+            t,
+            pulsar_name,
+            args=args,
+            folder=alg_saves_mask_Path,
+            iteration="start_pre",
+            save_plot=True,
+        )
+        for i in range(1):
+            f = WLSFitter(t, f.model)
+            f.fit_toas()
+            t.table["delta_pulse_number"] = 0
+            t.compute_pulse_numbers(f.model)
         # update the model
+
         m = f.model
 
         save_state(
             m,
             t,
             pulsar_name,
+            args=args,
             folder=alg_saves_mask_Path,
             iteration="start",
             save_plot=True,
@@ -830,6 +890,15 @@ def main(argv=None):
 
         # mask_with_closest will be everything not JUMPed, as well as the next clusters
         # to be de JUMPed
+
+        # the following list comprehension allows a JUMP number to be found
+        # by indexing this list with its cluster number. The wallrus operator
+        # is used for brevity.
+        j = 0
+        cluster_to_JUMPs = [
+            f"JUMP{(j:=j+1)}" if i != starting_cluster else ""
+            for i in range(t.table["clusters"][-1] + 1)
+        ]
         bad_mjds = []
         mask_with_closest = deepcopy(mask)
         iteration = 0
@@ -837,9 +906,7 @@ def main(argv=None):
             # the main loop of the algorithm
             iteration += 1
 
-            residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
-
-            # find the closest cluster and turn off its JUMP
+            # find the closest cluster
             closest_cluster, dist = get_closest_cluster(
                 deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
             )
@@ -848,11 +915,33 @@ def main(argv=None):
                 # end the program
                 break
 
+            # TODO add polyfit here
+
             mask_with_closest = np.logical_or(
                 mask, t.table["clusters"] == closest_cluster
             )
 
             # TODO remove the JUMPs from closest clusters
+            closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
+            getattr(m, closest_cluster_JUMP).frozen = True
+            getattr(m, closest_cluster_JUMP).value = 0
+            getattr(m, closest_cluster_JUMP).uncertainty = 0
+            # seeing if removing the value of every JUMP helps
+            for JUMP in cluster_to_JUMPs:
+                if JUMP and not getattr(m, JUMP).frozen:
+                    getattr(m, JUMP).value = 0
+
+            residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
+
+            save_state(
+                m,
+                t,
+                pulsar_name,
+                args=args,
+                folder=alg_saves_mask_Path,
+                iteration=f"prepre{iteration}",
+                save_plot=True,
+            )
 
             phase_connector(
                 t,
@@ -864,6 +953,15 @@ def main(argv=None):
                 mask_with_closest=mask_with_closest,
                 wraps=True,
             )
+            save_state(
+                m,
+                t,
+                pulsar_name,
+                args=args,
+                folder=alg_saves_mask_Path,
+                iteration=f"pre{iteration}",
+                save_plot=True,
+            )
 
             f = pint.fitter.WLSFitter(t, m)
             f.fit_toas()
@@ -874,6 +972,9 @@ def main(argv=None):
             # use random models, or design matrix method to determine if next
             # cluster is within the error space. If the next cluster is not
             # within the error space, check for phase wraps.
+
+            # TODO use random models or design matrix here
+
             # TODO add pontential phase wraps here
 
             # TODO add check_bad_points here-ish
@@ -892,6 +993,7 @@ def main(argv=None):
                 m,
                 t,
                 pulsar_name,
+                args=args,
                 folder=alg_saves_mask_Path,
                 iteration=iteration,
                 save_plot=True,
@@ -964,7 +1066,7 @@ def main(argv=None):
         )
         plt.clf()
 
-        # if success, stop trying and end program
+        # if success, stop trying and end programl
         if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
             print(
                 "SUCCESS! A solution was found with reduced chi2 of",
