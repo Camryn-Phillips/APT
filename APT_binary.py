@@ -760,6 +760,12 @@ def APT_argument_parse(parser, argv):
         type=float,
         default=5,
     )
+    parser.add_argument(
+        "--multiprocessing",
+        help="whether to include multiprocessing or not (t/f)",
+        type=str,
+        default="f",
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -768,25 +774,27 @@ def APT_argument_parse(parser, argv):
     args.plot_poly_extrap = args.plot_poly_extrap.lower()[0] == "t"
     args.plot_bad_points = args.plot_bad_points.lower()[0] == "t"
     args.plot_final = args.plot_final.lower()[0] == "t"
+    args.multiprocessing = args.multiprocessing.lower()[0] == "t"
 
     return args, parser
 
 
-def main(argv=None):
-    import argparse
-    import sys
+def main(args, parser, mask_selector = None):
+    # import argparse
+    # import sys
 
+    # args, parser, mask_selector = main_args
     flag_name = "jump_tim"
 
     # read in arguments from the command line
 
     """required = parfile, timfile"""
     """optional = starting points, param ranges"""
-    parser = argparse.ArgumentParser(
-        description="PINT tool for agorithmically timing pulsars."
-    )
+    # parser = argparse.ArgumentParser(
+    #     description="PINT tool for agorithmically timing binary pulsars."
+    # )
 
-    args, parser = APT_argument_parse(parser, argv)
+    # args, parser = APT_argument_parse(parser, argv=None)
 
     # if given starting points from command line, check if ints (group numbers) or floats (mjd values)
     start_type = None
@@ -839,6 +847,11 @@ def main(argv=None):
     mask_list, starting_cluster_list = starting_points(toas)
     for mask_number, mask in enumerate(mask_list):
         starting_cluster = starting_cluster_list[mask_number]
+
+        # for multiprocessing, the mask_selector tells each iteration of main to skip
+        # all but one of the masks
+        if mask_selector is not None and mask_number != mask_selector:
+            continue
         if starting_cluster != 0:
             continue
         print(
@@ -1126,7 +1139,7 @@ def main(argv=None):
         fig.savefig(
             alg_saves_mask_Path / Path(f"{pulsar_name}_final.png"), bbox_inches="tight"
         )
-        plt.clf()
+        plt.close()
 
         # if success, stop trying and end programl
         if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
@@ -1174,11 +1187,36 @@ def main(argv=None):
             print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
             print(f"TOAs Removed (MJD): {bad_mjds}")
             break
+    return "Completed"
 
 
 if __name__ == "__main__":
+    import argparse
+    import sys
+
     start_time = time.monotonic()
-    main()
+    parser = argparse.ArgumentParser(
+        description="PINT tool for agorithmically timing binary pulsars."
+    )
+    args, parser = APT_argument_parse(parser, argv=None)
+
+    if args.multiprocessing:
+        from multiprocessing import Pool
+
+        print("\n\nMultiprocessing in use!\n")
+        raise Exception("test")
+        with Pool(args.max_starts) as p:
+            print(
+                p.starmap(
+                    main,
+                    [
+                        (args, parser, mask_selector)
+                        for mask_selector in range(args.max_starts)
+                    ],
+                )
+            )
+    else:
+        main(args, parser)
     end_time = time.monotonic()
     print(
         f"Final Runtime (including plots): {end_time - start_time} seconds, or {(end_time - start_time) / 60.0} minutes"
