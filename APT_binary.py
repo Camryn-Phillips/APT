@@ -340,7 +340,9 @@ def save_state(
             f"\nA1 detected to be negative! Should APTB attempt to correct it? (y/n)"
         )
         if response.lower() != "y":
-            raise e
+            print(e)
+            print("Moving onto next mask")
+            return False
         print(f"(A1 = {m_copy.A1.value} and TASC = {m_copy.TASC.value})\n")
         if args.binary_model.lower() == "ell1":
             # the fitter cannot distinguish between a sinusoid and the negative
@@ -355,6 +357,11 @@ def save_state(
         fig, ax = plt.subplots(figsize=(12, 7))
 
         fig, ax = plot_plain(f, mjds, t, m, iteration, fig, ax)
+        if kwargs.get("mask_with_closest") is not None:
+            temp_mask = kwargs.get("mask_with_closest")
+            fig, ax = plot_plain(
+                f, mjds[temp_mask], t[temp_mask], m, iteration, fig, ax
+            )
         # ax.plot(
         #     t.get_mjds().value,
         #     pint.residuals.Residuals(t, m_copy).calc_phase_resids(),
@@ -369,6 +376,7 @@ def save_state(
         if save_plot:
             fig.savefig(folder / Path(f"{pulsar_name}_{iteration}.png"))
         plt.close()
+    return True
 
 
 def plot_plain(
@@ -420,7 +428,7 @@ def plot_plain(
         ax.set_xlim(min(xt) - 20, max(xt) + 20)
 
     else:
-        ax.set_xlim(min(mjds).value - 0.1 * width, max(mjds).value + 0.1 * width)
+        ax.set_xlim(min(mjds) - 0.1 * width, max(mjds) + 0.1 * width)
 
     plt.grid()
 
@@ -779,7 +787,31 @@ def APT_argument_parse(parser, argv):
     return args, parser
 
 
-def main(args, parser, mask_selector = None):
+def main2():
+    parser = argparse.ArgumentParser(
+        description="PINT tool for agorithmically timing binary pulsars."
+    )
+    args, parser = APT_argument_parse(parser, argv=None)
+
+    if args.multiprocessing:
+        from multiprocessing import Pool
+
+        print("\n\nMultiprocessing in use!\n")
+        with Pool(args.max_starts) as p:
+            print(
+                p.starmap(
+                    main_loop,
+                    [
+                        (args, parser, mask_selector)
+                        for mask_selector in range(args.max_starts)
+                    ],
+                )
+            )
+    else:
+        main_loop(args, parser)
+
+
+def main(args, parser, mask_selector=None):
     # import argparse
     # import sys
 
@@ -852,7 +884,7 @@ def main(args, parser, mask_selector = None):
         # all but one of the masks
         if mask_selector is not None and mask_number != mask_selector:
             continue
-        if starting_cluster != 0:
+        if starting_cluster != 22:
             continue
         print(
             f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
@@ -897,7 +929,7 @@ def main(args, parser, mask_selector = None):
             residuals=residuals_start,
             wraps=True,
         )
-        save_state(
+        if not save_state(
             m=m,
             t=t,
             mjds=mjds_total,
@@ -907,7 +939,9 @@ def main(args, parser, mask_selector = None):
             folder=alg_saves_mask_Path,
             iteration="start_right_after_phase",
             save_plot=True,
-        )
+        ):
+            # try next mask
+            continue
 
         print("Fitting...")
         f = WLSFitter(t, m)
@@ -927,7 +961,7 @@ def main(args, parser, mask_selector = None):
         # update the model
         m = f.model
 
-        save_state(
+        if not save_state(
             f,
             m,
             t,
@@ -937,7 +971,8 @@ def main(args, parser, mask_selector = None):
             folder=alg_saves_mask_Path,
             iteration="start",
             save_plot=True,
-        )
+        ):
+            continue
 
         # something is certaintly wrong if the reduced chisq is greater that 3 at this stage,
         # so APTB should not waste time attempting to coerce a solution
@@ -966,6 +1001,7 @@ def main(args, parser, mask_selector = None):
             f"JUMP{(j:=j+1)}" if i != starting_cluster else ""
             for i in range(t.table["clusters"][-1] + 1)
         ]
+        skip_mask = False
         bad_mjds = []
         mask_with_closest = deepcopy(mask)
         iteration = 0
@@ -982,11 +1018,11 @@ def main(args, parser, mask_selector = None):
                 # end the program
                 break
 
+            closest_closter_mask = t.table["clusters"] == closest_cluster
+
             # TODO add polyfit here
 
-            mask_with_closest = np.logical_or(
-                mask, t.table["clusters"] == closest_cluster
-            )
+            mask_with_closest = np.logical_or(mask_with_closest, closest_closter_mask)
 
             closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
             getattr(m, closest_cluster_JUMP).frozen = True
@@ -1024,17 +1060,20 @@ def main(args, parser, mask_selector = None):
                 mask_with_closest=mask_with_closest,
                 wraps=True,
             )
-            # save_state(
-            #     f,
-            #     m,
-            #     t,
-            #     mjds_total,
-            #     pulsar_name,
-            #     args=args,
-            #     folder=alg_saves_mask_Path,
-            #     iteration=f"pre{iteration}",
-            #     save_plot=True,
-            # )
+            if not save_state(
+                f,
+                m,
+                t,
+                mjds_total,
+                pulsar_name,
+                args=args,
+                folder=alg_saves_mask_Path,
+                iteration=f"prefit{iteration}",
+                save_plot=True,
+                mask_with_closest=mask_with_closest,
+            ):
+                skip_mask = True
+                break
 
             f = pint.fitter.WLSFitter(t, m)
             f.fit_toas(maxiter=maxiter_while)
@@ -1062,7 +1101,7 @@ def main(args, parser, mask_selector = None):
 
             m = f.model
 
-            save_state(
+            if not save_state(
                 f,
                 m,
                 t,
@@ -1072,9 +1111,14 @@ def main(args, parser, mask_selector = None):
                 folder=alg_saves_mask_Path,
                 iteration=iteration,
                 save_plot=True,
-            )
+            ):
+                skip_mask = True
+                break
 
             # repeat
+
+        if skip_mask:
+            continue
 
         # try fitting with any remaining unfit parameters included and see if the fit is better for it
         m_plus = deepcopy(m)
@@ -1099,13 +1143,14 @@ def main(args, parser, mask_selector = None):
         print("Final Model:\n", f.model.as_parfile())
 
         # save as .fin
-        fin_name = f.model.PSR.value + ".fin"
-        with open(fin_name, "w") as finfile:
+        fin_name = Path(f.model.PSR.value + ".fin")
+        with open(alg_saves_mask_Path / fin_name, "w") as finfile:
             finfile.write(f.model.as_parfile())
 
         # plot final residuals if plot_final True
         xt = t.get_mjds()
         plt.clf()
+        plt.close()
         fig, ax = plt.subplots()
         twinx = ax.twinx()
         ax.errorbar(
@@ -1154,7 +1199,9 @@ def main(args, parser, mask_selector = None):
                 while True:
                     try:
                         identical_solution = solution_compare(
-                            args.parfile_compare, f"{f.model.PSR.value}.fin", timfile
+                            args.parfile_compare,
+                            alg_saves_mask_Path / Path(f"{f.model.PSR.value}.fin"),
+                            timfile,
                         )
                         # if succesful, break the loop
                         break
@@ -1201,10 +1248,11 @@ if __name__ == "__main__":
     args, parser = APT_argument_parse(parser, argv=None)
 
     if args.multiprocessing:
-        from multiprocessing import Pool
+        # from multiprocessing import Pool
+        # from pathos.multiprocessing import ProcessingPool as Pool
+        from multiprocessing.pool import ThreadPool as Pool
 
         print("\n\nMultiprocessing in use!\n")
-        raise Exception("test")
         with Pool(args.max_starts) as p:
             print(
                 p.starmap(
