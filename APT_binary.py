@@ -178,8 +178,10 @@ def phase_connector(
 
     # this function can perform the neccesary actions on all clusters using either
     # np.unwrap or recursion
-    toas.compute_pulse_numbers(model)
+
+    # these need to be reset before unwrapping occurs
     toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
+    toas.compute_pulse_numbers(model)
 
     if cluster == "all":
         if connection_filter == "np.unwrap":
@@ -312,8 +314,10 @@ def phase_connector(
 
 
 def save_state(
+    f,
     m,
     t,
+    mjds,
     pulsar_name,
     iteration,
     folder,
@@ -333,7 +337,7 @@ def save_state(
         if str(e)[:47] != "Projected semi-major axis A1 cannot be negative":
             raise e
         response = input(
-            f"\nA1 detected to be negative! Should APTB attempt to correct it. (y/n)"
+            f"\nA1 detected to be negative! Should APTB attempt to correct it? (y/n)"
         )
         if response.lower() != "y":
             raise e
@@ -349,19 +353,88 @@ def save_state(
 
     if save_plot or show_plot:
         fig, ax = plt.subplots(figsize=(12, 7))
-        ax.plot(
-            t.get_mjds().value,
-            pint.residuals.Residuals(t, m_copy).calc_phase_resids(),
-            ".",
-            markersize=kwargs.get("markersize", 10),
-        )
-        ax.set_xlabel("MJD")
-        ax.set_ylabel("Residual (phase)")
-        ax.grid()
+
+        fig, ax = plot_plain(f, mjds, t, m, iteration, fig, ax)
+        # ax.plot(
+        #     t.get_mjds().value,
+        #     pint.residuals.Residuals(t, m_copy).calc_phase_resids(),
+        #     ".",
+        #     markersize=kwargs.get("markersize", 10),
+        # )
+        # ax.set_xlabel("MJD")
+        # ax.set_ylabel("Residual (phase)")
+        # ax.grid()
         if show_plot:
             plt.show()
         if save_plot:
             fig.savefig(folder / Path(f"{pulsar_name}_{iteration}.png"))
+        plt.close()
+
+
+def plot_plain(
+    f,
+    mjds,
+    t,
+    m,
+    iteration,
+    fig,
+    ax,
+):
+    # plot post fit residuals with error bars
+
+    model0 = deepcopy(m)
+
+    xt = mjds
+    ax.errorbar(
+        mjds,
+        pint.residuals.Residuals(t, m).time_resids.to(u.us).value,
+        t.get_errors().to(u.us).value,
+        fmt=".b",
+        label="post-fit",
+    )
+
+    # string of fit parameters for plot title
+    fitparams = ""
+    if f:
+        for param in f.get_fitparams().keys():
+            if "JUMP" in str(param):
+                fitparams += f"J{str(param)[4:]} "
+            else:
+                fitparams += str(param) + " "
+
+    # notate the pulsar name, iteration, and fit parameters
+    plt.title(f"{m.PSR.value} Post-Fit Residuals {iteration} | fit params: {fitparams}")
+    ax.set_xlabel("MJD")
+    ax.set_ylabel("Residual (us)")
+    r = pint.residuals.Residuals(t, model0).time_resids.to(u.us).value
+
+    # set the y limit to be just above and below the max and min points
+    yrange = abs(max(r) - min(r))
+    ax.set_ylim(max(r) + 0.1 * yrange, min(r) - 0.1 * yrange)
+
+    # scale to the edges of the points or the edges of the random models, whichever is smaller
+    width = max(mjds) - min(mjds)
+    if (min(mjds) - 0.1 * width) < (min(xt) - 20) or (max(mjds) + 0.1 * width) > (
+        max(xt) + 20
+    ):
+        ax.set_xlim(min(xt) - 20, max(xt) + 20)
+
+    else:
+        ax.set_xlim(min(mjds).value - 0.1 * width, max(mjds).value + 0.1 * width)
+
+    plt.grid()
+
+    def us_to_phase(x):
+        return (x / (10**6)) * m.F0.value
+
+    def phase_to_us(y):
+        return (y / m.F0.value) * (10**6)
+
+    # include secondary axis to show phase
+    secaxy = ax.secondary_yaxis("right", functions=(us_to_phase, phase_to_us))
+    secaxy.set_ylabel("residuals (phase)")
+
+    return fig, ax
 
 
 def Ftest_param(r_model, fitter, param_name):
@@ -760,6 +833,9 @@ def main(argv=None):
 
     set_F1_lim(args, parfile)
 
+    # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
+    maxiter_while = 2
+
     mask_list, starting_cluster_list = starting_points(toas)
     for mask_number, mask in enumerate(mask_list):
         starting_cluster = starting_cluster_list[mask_number]
@@ -809,29 +885,21 @@ def main(argv=None):
             wraps=True,
         )
         save_state(
-            m,
-            t,
-            pulsar_name,
+            m=m,
+            t=t,
+            mjds=mjds_total,
+            pulsar_name=pulsar_name,
+            f=None,
             args=args,
             folder=alg_saves_mask_Path,
             iteration="start_right_after_phase",
             save_plot=True,
         )
 
-        # save_state(
-        #     m,
-        #     t,
-        #     pulsar_name,
-        #     folder=alg_saves_mask_Path,
-        #     iteration="test",
-        #     show_plot=True,
-        # )
-        # raise Exception("stop")
-
         print("Fitting...")
         f = WLSFitter(t, m)
         print("BEFORE:", f.get_fitparams())
-        print(f.fit_toas(maxiter=1))
+        print(f.fit_toas(maxiter=2))
 
         print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
         print("RMS in phase is", f.resids.phase_resids.std())
@@ -843,28 +911,14 @@ def main(argv=None):
         t.table["delta_pulse_number"] = 0
         t.compute_pulse_numbers(f.model)
 
-        # doing this once more ensures the fit settles
-        save_state(
-            f.model,
-            t,
-            pulsar_name,
-            args=args,
-            folder=alg_saves_mask_Path,
-            iteration="start_pre",
-            save_plot=True,
-        )
-        for i in range(1):
-            f = WLSFitter(t, f.model)
-            f.fit_toas()
-            t.table["delta_pulse_number"] = 0
-            t.compute_pulse_numbers(f.model)
         # update the model
-
         m = f.model
 
         save_state(
+            f,
             m,
             t,
+            mjds_total,
             pulsar_name,
             args=args,
             folder=alg_saves_mask_Path,
@@ -921,7 +975,6 @@ def main(argv=None):
                 mask, t.table["clusters"] == closest_cluster
             )
 
-            # TODO remove the JUMPs from closest clusters
             closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
             getattr(m, closest_cluster_JUMP).frozen = True
             getattr(m, closest_cluster_JUMP).value = 0
@@ -930,18 +983,23 @@ def main(argv=None):
             for JUMP in cluster_to_JUMPs:
                 if JUMP and not getattr(m, JUMP).frozen:
                     getattr(m, JUMP).value = 0
+                    getattr(m, JUMP).uncertainty = 0
 
+            t.table["delta_pulse_number"] = 0
+            t.compute_pulse_numbers(m)
             residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
 
-            save_state(
-                m,
-                t,
-                pulsar_name,
-                args=args,
-                folder=alg_saves_mask_Path,
-                iteration=f"prepre{iteration}",
-                save_plot=True,
-            )
+            # save_state(
+            #     f,
+            #     m,
+            #     t,
+            #     mjds_total,
+            #     pulsar_name,
+            #     args=args,
+            #     folder=alg_saves_mask_Path,
+            #     iteration=f"prepre{iteration}",
+            #     save_plot=True,
+            # )
 
             phase_connector(
                 t,
@@ -953,18 +1011,20 @@ def main(argv=None):
                 mask_with_closest=mask_with_closest,
                 wraps=True,
             )
-            save_state(
-                m,
-                t,
-                pulsar_name,
-                args=args,
-                folder=alg_saves_mask_Path,
-                iteration=f"pre{iteration}",
-                save_plot=True,
-            )
+            # save_state(
+            #     f,
+            #     m,
+            #     t,
+            #     mjds_total,
+            #     pulsar_name,
+            #     args=args,
+            #     folder=alg_saves_mask_Path,
+            #     iteration=f"pre{iteration}",
+            #     save_plot=True,
+            # )
 
             f = pint.fitter.WLSFitter(t, m)
-            f.fit_toas()
+            f.fit_toas(maxiter=maxiter_while)
             t.table["delta_pulse_number"] = 0
             t.compute_pulse_numbers(f.model)
             m = f.model
@@ -985,13 +1045,15 @@ def main(argv=None):
 
             # fit
             f = pint.fitter.WLSFitter(t, m)
-            f.fit_toas()
+            f.fit_toas(maxiter=maxiter_while)
 
             m = f.model
 
             save_state(
+                f,
                 m,
                 t,
+                mjds_total,
                 pulsar_name,
                 args=args,
                 folder=alg_saves_mask_Path,
@@ -1012,7 +1074,7 @@ def main(argv=None):
             getattr(m_plus, "EPS2").frozen = False
 
         f_plus = pint.fitter.WLSFitter(t, m_plus)
-        f_plus.fit_toas()
+        f_plus.fit_toas(maxiter=maxiter_while)
 
         # residuals
         r = pint.residuals.Residuals(t, f.model)
@@ -1076,12 +1138,33 @@ def main(argv=None):
                 "iterations",
             )
             if args.parfile_compare:
-                identical_solution = solution_compare(
-                    args.parfile_compare, f"{f.model.PSR.value}.fin", timfile
-                )
-                print(
-                    f"\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n"
-                )
+                while True:
+                    try:
+                        identical_solution = solution_compare(
+                            args.parfile_compare, f"{f.model.PSR.value}.fin", timfile
+                        )
+                        # if succesful, break the loop
+                        break
+
+                    # if an error occurs, attempt again with the correct solution path
+                    except FileNotFoundError as e:
+                        args.parfile_compare = input(
+                            "Solution file not found. Input the full path here or enter 'q' to quit: "
+                        )
+                        if args.parfile_compare == "q":
+                            identical_solution = "Unknown"
+                            break
+                        # else, try the loop again
+
+                if identical_solution != "Unknown":
+                    print(
+                        f"\n\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n\n"
+                    )
+                else:
+                    print(
+                        f"\nSolution compare failed because the solution file could not be found."
+                    )
+
             print(f"The input parameters for this fit were:\n {args}")
             print(
                 f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
