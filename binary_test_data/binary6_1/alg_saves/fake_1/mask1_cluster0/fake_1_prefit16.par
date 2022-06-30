@@ -1,0 +1,57 @@
+# Created: 2022-06-30T16:23:23.480224
+# PINT_version: 0.8.8+266.g496144ad
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSR                                fake_1
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+START              56000.0000000929254977
+FINISH             56489.0564966304336458
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   77
+CHI2                                  0.0
+RAJ                     17:04:30.34589971 1 0.02428501354121477898
+DECJ                    19:26:02.71982679 1 0.29426826018547252994
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  7.3536815905243380644 1 7.0979417993128785926e-10
+F1                                    0.0 0 0.0
+PEPOCH             56000.0000000000000000
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+BINARY                               ELL1
+PB                  2.9278623150421133321 1 0.00015006365774569843186
+A1                   0.030169535808910762 1 0.0003188161914831583
+TASC               56253.0432876687120576 1 0.011449178681668890564
+EPS1                                  0.0 0 0.0
+EPS2                                  0.0 0 0.0
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0
+JUMP            -jump_tim 1                       0.0 0 0.0
+JUMP            -jump_tim 2                       0.0 0 0.0
+JUMP            -jump_tim 3                       0.0 0 0.0
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 7                       0.0 0 0.0
+JUMP            -jump_tim 8                       0.0 0 0.0
+JUMP            -jump_tim 9                       0.0 0 0.0
+JUMP            -jump_tim 10                       0.0 0 0.0
+JUMP            -jump_tim 11                       0.0 0 0.0
+JUMP            -jump_tim 12                       0.0 0 0.0
+JUMP            -jump_tim 13                       0.0 0 0.0
+JUMP            -jump_tim 14                       0.0 0 0.0
+JUMP            -jump_tim 15                       0.0 0 0.0
+JUMP            -jump_tim 16                       0.0 0 0.0
+JUMP            -jump_tim 17         41.19769530585576 1 0.0022145884677021097
+JUMP            -jump_tim 18         44.32326878085642 1 0.002587049872883368
+JUMP            -jump_tim 19         49.48029882348391 1 0.00324819063308015
+JUMP            -jump_tim 20         54.09450906621966 1 0.003609219182651528
+JUMP            -jump_tim 21        60.471261571984094 1 0.0033864780879400967
+JUMP            -jump_tim 22         63.86246625486273 1 0.0031660544735740534
+JUMP            -jump_tim 23         69.83055534878099 1 0.0034806442564805375

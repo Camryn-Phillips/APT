@@ -597,6 +597,62 @@ def set_binary_pars_lim(args):
     return args
 
 
+def quadratic_phase_wrap_checker(
+    m, t, mask_with_closest, closest_cluster_mask, b, maxiter_while
+):
+    chisq_samples = {0: pint.residuals.Residuals(t, m).chi2_reduced}
+    t_closest_cluster = t[closest_cluster_mask]
+
+    t_plus_b = deepcopy(t)
+    t_minus_b = deepcopy(t)
+
+    t_plus_b.table["delta_pulse_number"][closest_cluster_mask] = b
+    t_minus_b.table["delta_pulse_number"][closest_cluster_mask] = -b
+
+    f_plus_b = WLSFitter(t_plus_b, m)
+    f_minus_b = WLSFitter(t_minus_b, m)
+
+    f_plus_b.fit_toas(maxiter=maxiter_while)
+    f_minus_b.fit_toas(maxiter=maxiter_while)
+
+    t_plus_b["delta_pulse_number"] = 0
+    t_minus_b["delta_pulse_number"] = 0
+    t_plus_b.compute_pulse_numbers(f_plus_b.model)
+    t_minus_b.compute_pulse_numbers(f_minus_b.model)
+
+    chisq_samples[b] = pint.residuals.Residuals(t_plus_b, f_plus_b.model).chi2_reduced
+    chisq_samples[-b] = pint.residuals.Residuals(
+        t_minus_b, f_minus_b.model
+    ).chi2_reduced
+
+    min_wrap = round(
+        (b / 2)
+        * (chisq_samples[-b] - chisq_samples[b])
+        / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
+    )
+    # check +1, 0, and -1 wrap from min_wrap
+    t_wrap_list = []
+    f_wrap_list = []
+    chisq_wrap = {}
+    for wrap in range(-1, 2):
+        t_wrap = deepcopy(t)
+        t_wrap.table["delta_pulse_number"][closest_cluster_mask] = min_wrap + wrap
+        f_wrap = WLSFitter(t_wrap, m)
+        f_wrap.fit_toas(maxiter=maxiter_while)
+
+        t_wrap["delta_pulse_number"] = 0
+        t_wrap.compute_pulse_numbers(f_wrap.model)
+
+        chisq_wrap[pint.residuals.Residuals(t_wrap, f_wrap.model).chi2_reduced] = wrap
+
+    min_chisq = min(chisq_wrap.keys())
+
+    min_wrap_number_total = chisq_wrap[min_chisq]
+
+    t_closest_cluster.table["delta_pulse_number"] = min_wrap_number_total
+    t.table[closest_cluster_mask] = t_closest_cluster.table
+
+
 def APT_argument_parse(parser, argv):
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
@@ -787,30 +843,6 @@ def APT_argument_parse(parser, argv):
     return args, parser
 
 
-def main2():
-    parser = argparse.ArgumentParser(
-        description="PINT tool for agorithmically timing binary pulsars."
-    )
-    args, parser = APT_argument_parse(parser, argv=None)
-
-    if args.multiprocessing:
-        from multiprocessing import Pool
-
-        print("\n\nMultiprocessing in use!\n")
-        with Pool(args.max_starts) as p:
-            print(
-                p.starmap(
-                    main_loop,
-                    [
-                        (args, parser, mask_selector)
-                        for mask_selector in range(args.max_starts)
-                    ],
-                )
-            )
-    else:
-        main_loop(args, parser)
-
-
 def main(args, parser, mask_selector=None):
     # import argparse
     # import sys
@@ -884,7 +916,7 @@ def main(args, parser, mask_selector=None):
         # all but one of the masks
         if mask_selector is not None and mask_number != mask_selector:
             continue
-        if starting_cluster != 22:
+        if starting_cluster != 0:
             continue
         print(
             f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
@@ -1018,21 +1050,21 @@ def main(args, parser, mask_selector=None):
                 # end the program
                 break
 
-            closest_closter_mask = t.table["clusters"] == closest_cluster
+            closest_cluster_mask = t.table["clusters"] == closest_cluster
 
             # TODO add polyfit here
 
-            mask_with_closest = np.logical_or(mask_with_closest, closest_closter_mask)
+            mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
 
             closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
             getattr(m, closest_cluster_JUMP).frozen = True
             getattr(m, closest_cluster_JUMP).value = 0
             getattr(m, closest_cluster_JUMP).uncertainty = 0
             # seeing if removing the value of every JUMP helps
-            for JUMP in cluster_to_JUMPs:
-                if JUMP and not getattr(m, JUMP).frozen:
-                    getattr(m, JUMP).value = 0
-                    getattr(m, JUMP).uncertainty = 0
+            # for JUMP in cluster_to_JUMPs:
+            #     if JUMP and not getattr(m, JUMP).frozen:
+            #         getattr(m, JUMP).value = 0
+            #         getattr(m, JUMP).uncertainty = 0
 
             t.table["delta_pulse_number"] = 0
             t.compute_pulse_numbers(m)
@@ -1075,6 +1107,11 @@ def main(args, parser, mask_selector=None):
                 skip_mask = True
                 break
 
+            # TODO add pontential phase wraps here
+            m, t = quadratic_phase_wrap_checker(
+                m, t, mask_with_closest, closest_cluster_mask, maxiter_while
+            )
+
             f = pint.fitter.WLSFitter(t, m)
             f.fit_toas(maxiter=maxiter_while)
             t.table["delta_pulse_number"] = 0
@@ -1087,7 +1124,8 @@ def main(args, parser, mask_selector=None):
 
             # TODO use random models or design matrix here
 
-            # TODO add pontential phase wraps here
+            # # TODO add pontential phase wraps here
+            # m, t = quadratic_phase_wrap_checker(m, t, mask_with_closest, closest_cluster_mask)
 
             # TODO add check_bad_points here-ish
 
