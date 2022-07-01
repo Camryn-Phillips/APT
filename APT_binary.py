@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 import socket
 from APT import get_closest_cluster, solution_compare, bad_points
+import APT_binary_extension
 
 
 class StartingJumpError(Exception):
@@ -32,10 +33,13 @@ def starting_points(toas, args=None):
     """
     Choose which cluster to NOT jump, i.e. where to start
 
+    Parameters
+    ----------
     toas : TOA object
     args : command line arguments
 
     Returns
+    -------
     tuple : (mask_list[:max_starts], starting_cluster_list[:max_starts])
     """
     t = deepcopy(toas)
@@ -78,10 +82,16 @@ def JUMP_adder_begginning(
     """
     Adds JUMPs to a timfile as the begginning of analysis.
 
+    Parameters
+    ----------
     mask : a mask to select which toas will not be jumped
     toas : TOA object
     output_timfile : name for the tim file to be written
     output_parfile : name for par file to be written
+
+    Returns
+    -------
+    model, t
     """
     t = deepcopy(toas)
     flag_name = "jump_tim"
@@ -116,6 +126,8 @@ def JUMP_adder_begginning_cluster(
     This differs from JUMP_adder_begginning in that the jump flags
     are named based on the cluster number, not sequenitally from 0.
 
+    Parameters
+    ----------
     mask : a mask to select which toas will not be jumped
     toas : TOA object
     model : model object
@@ -123,6 +135,7 @@ def JUMP_adder_begginning_cluster(
     output_timfile : name for the tim file to be written
 
     Returns
+    -------
     model, t
     """
     t = deepcopy(toas)
@@ -163,6 +176,9 @@ def phase_connector(
 ):
     """
     Makes sure each cluster is phase connected with itself.
+
+    Parameters
+    ----------
     toas : TOAs object
     model : model object
     connection_filter1 : the basic filter for determing what is and what is not phase connected
@@ -172,7 +188,9 @@ def phase_connector(
     mjds_total : all mjds of TOAs, optional (may decrease runtime to include)
 
     Returns
-    True
+    -------
+    None
+        The only intention of the return statements is to end the function
     """
     # print(f"cluster {cluster}")
 
@@ -197,7 +215,7 @@ def phase_connector(
                 residuals_unwrapped - residuals[~mask_with_closest]
             )
             toas.table[~mask_with_closest] = t.table
-            return True
+            return
         for cluster_number in set(toas["clusters"]):
             phase_connector(
                 toas,
@@ -208,7 +226,7 @@ def phase_connector(
                 residuals,
                 **kwargs,
             )
-        return True
+        return
 
     if mjds_total is None:
         mjds_total = toas.get_mjds().value
@@ -227,7 +245,7 @@ def phase_connector(
     cluster_mask = t.table["clusters"] == cluster
     t.select(cluster_mask)
     if len(t) == 1:  # no phase wrapping possible
-        return True
+        return
 
     residuals = residuals_total[cluster_mask]
     mjds = mjds_total[cluster_mask]
@@ -250,11 +268,11 @@ def phase_connector(
         if np.all(residuals_dif_normalized >= 0) or np.all(
             residuals_dif_normalized <= 0
         ):
-            return True
+            return
 
         # another condition that means phase connection
         if kwargs.get("wraps") and max(np.abs(residuals_dif)) < 0.4:
-            return True
+            return
         # print(max(np.abs(residuals_dif)))
         # attempt to fix the phase wraps, then run recursion to either fix it again
         # or verify it is fixed
@@ -305,9 +323,9 @@ def phase_connector(
         toas.table[cluster_mask] = t.table
 
         # this filter currently does not check itself
-        return True
+        return
 
-    # run it again, will return true and end the recursion if nothing needs to be fixed
+    # run it again, will return None and end the recursion if nothing needs to be fixed
     phase_connector(
         toas, model, connection_filter, cluster, mjds_total, residuals, **kwargs
     )
@@ -327,6 +345,33 @@ def save_state(
     mask_with_closest=None,
     **kwargs,
 ):
+    """
+    Records the par and tim files of the current state and graphs a figure.
+    It also checks if A1 is negative and if it is, it will ask the user if APTB
+    should attempt to fix it. When other binary models are implemented, other
+    types of checks for their respective models would need to be implemented here,
+    provided easy fixes are available.
+
+    Parameters
+    ----------
+    f : fitter object
+    m : model object
+    t : toas object
+    mjds : all mjds of TOAS
+    pulsar_name : name of pulsar ('fake_#' in the test cases)
+    iteration : how many times the while True loop logic has repeated + 1
+    folder : path to directory for saving the state
+    args : command line arguments
+    save_plot : whether to save the plot or not (defaults to False)
+    show_plot : whether to display the figure immediately after generation, iterupting the program (defaults to False)
+    mask_with_closest : the mask with the non-JUMPed TOAs
+    kwarhs : additional keyword arguments
+
+    Returns
+    -------
+    bool
+        whether or not a managed error occured (True if no issues). Nonmanaged errors will completely hault the program
+    """
     m_copy = deepcopy(m)
     t = deepcopy(t)
 
@@ -357,38 +402,44 @@ def save_state(
     if save_plot or show_plot:
         fig, ax = plt.subplots(figsize=(12, 7))
 
-        if mask_with_closest is not None:
-            fig, ax = plot_plain(
-                f,
-                mjds,
-                t,
-                m,
-                iteration,
-                fig,
-                ax,
-                mask_with_closest=mask_with_closest,
-            )
-        else:
-            fig, ax = plot_plain(f, mjds, t, m, iteration, fig, ax)
+        fig, ax = plot_plain(
+            f,
+            mjds,
+            t,
+            m,
+            iteration,
+            fig,
+            ax,
+            mask_with_closest=mask_with_closest,
+        )
 
-        # ax.plot(
-        #     t.get_mjds().value,
-        #     pint.residuals.Residuals(t, m_copy).calc_phase_resids(),
-        #     ".",
-        #     markersize=kwargs.get("markersize", 10),
-        # )
-        # ax.set_xlabel("MJD")
-        # ax.set_ylabel("Residual (phase)")
-        # ax.grid()
         if show_plot:
             plt.show()
         if save_plot:
             fig.savefig(folder / Path(f"{pulsar_name}_{iteration}.png"))
         plt.close()
+    # if the function has gotten to this point, (likely) no issues have occured
     return True
 
 
 def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
+    """
+    A helper function for save_state. Graphs the time & phase residuals.
+    Including mask_with_closests colors red the TOAs not JUMPed.
+
+    This function is largely inherited from APT with some small, but crucial, changes
+
+    Parameters
+    ----------
+    f, mjds, t, m, iteration, mask)wtih_closest : identical to save_state
+    fig : matplotlib.pyplot.subplots figure object
+    ax : matplotlib.pyplot.subplots axis object
+
+    Returns
+    -------
+    fig, ax
+        These then will be handled, and likely saved, by the rest of the save_state function
+    """
     # plot post fit residuals with error bars
     model0 = deepcopy(m)
     r = pint.residuals.Residuals(t, model0).time_resids.to(u.us).value
@@ -551,13 +602,17 @@ def do_Ftests(t, m, mask_with_closest, args):
         Ftest_F = Ftest_param(m, f, "F1")
         Ftests[Ftest_F] = "F1"
 
-    if args.binary_model.lower() == "ell1":
-        if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
-            Ftest_F = Ftest_param(m, f, "EPS1")
-            Ftests[Ftest_F] = "EPS1"
-        if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
-            Ftest_F = Ftest_param(m, f, "EPS2")
-            Ftests[Ftest_F] = "EPS2"
+    m, t, f, f_params, span, Ftests, args = APT_binary_extension.do_Ftests_binary(
+        m, t, f, f_params, span, Ftests, args
+    )
+
+    # if args.binary_model.lower() == "ell1":
+    #     if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
+    #         Ftest_F = Ftest_param(m, f, "EPS1")
+    #         Ftests[Ftest_F] = "EPS1"
+    #     if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
+    #         Ftest_F = Ftest_param(m, f, "EPS2")
+    #         Ftests[Ftest_F] = "EPS2"
 
     # remove possible boolean elements from Ftest returning False if chi2 increases
     Ftests_keys = [key for key in Ftests.keys() if type(key) != bool]
@@ -611,25 +666,17 @@ def quadratic_phase_wrap_checker(
     t_closest_cluster = deepcopy(t)
     t_closest_cluster.select(closest_cluster_mask)
     chisq_samples = {}
-    t_samples = {}
-    f_samples = {}
+    f = WLSFitter(t, m)
     for wrap in [-b, 0, b]:
 
-        t_wrapped = deepcopy(t)
+        t.table["delta_pulse_number"][closest_cluster_mask] = wrap
 
-        t_wrapped.table["delta_pulse_number"][closest_cluster_mask] = wrap
+        f.fit_toas(maxiter=maxiter_while)
 
-        f_wrapped = WLSFitter(t_wrapped, m)
-        f_wrapped.fit_toas(maxiter=maxiter_while)
+        t["delta_pulse_number"] = 0
+        t.compute_pulse_numbers(f.model)
 
-        t_wrapped["delta_pulse_number"] = 0
-        t_wrapped.compute_pulse_numbers(f_wrapped.model)
-
-        chisq_samples[wrap] = pint.residuals.Residuals(
-            t_wrapped, f_wrapped.model
-        ).chi2_reduced
-        t_samples[wrap] = t_wrapped
-        f_samples[wrap] = f_wrapped
+        chisq_samples[wrap] = pint.residuals.Residuals(t, f.model).chi2_reduced
 
     min_wrap = round(
         (b / 2)
@@ -662,7 +709,7 @@ def quadratic_phase_wrap_checker(
     t = t_wrap_dict[min_wrap_number_total]
     f = f_wrap_dict[min_wrap_number_total]
 
-    return f, t
+    return f, t, chisq_samples, min_wrap
 
     # t_closest_cluster.table["delta_pulse_number"] = min_wrap_number_total
     # t.table[closest_cluster_mask] = t_closest_cluster.table
@@ -984,11 +1031,6 @@ def main(args, parser, mask_selector=None):
             wraps=True,
         )
 
-        # save_state records the par and tim files of the current state and graphs a figure.
-        # It also checks if A1 is negative and if it is, it will ask the user if APTB
-        # should attempt to fix it. When other binary models are implemented, other
-        # types of checks for their respective models would need to be implemented here,
-        # provided easy fixes are available.
         if not save_state(
             m=m,
             t=t,
@@ -1081,6 +1123,8 @@ def main(args, parser, mask_selector=None):
             closest_cluster_mask = t.table["clusters"] == closest_cluster
 
             # TODO add polyfit here
+            # random models can cover this instead
+            # do slopes match from next few clusters, or does a quadratic fit
 
             mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
 
