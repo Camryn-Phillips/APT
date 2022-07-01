@@ -29,14 +29,15 @@ class StartingJumpError(Exception):
     pass
 
 
-def starting_points(toas, args=None):
+def starting_points(toas, args=None, score_function="original", **kwargs):
     """
     Choose which cluster to NOT jump, i.e. where to start
 
     Parameters
     ----------
-    toas : TOA object
+    toas : TOAs object
     args : command line arguments
+    score_function : which function to use to rank TOAs
 
     Returns
     -------
@@ -48,7 +49,12 @@ def starting_points(toas, args=None):
     mjd_values = t.get_mjds().value
     dts = np.fabs(mjd_values - mjd_values[:, np.newaxis]) + np.eye(len(mjd_values))
 
-    score_list = (1.0 / dts).sum(axis=1)
+    if score_function == "original":
+        score_list = (1.0 / dts).sum(axis=1)
+    # different powers give different starting masks
+    elif score_function == "original_different_power":
+        power = kwargs.get("power", 0.3)
+        score_list = (1.0 / dts**power).sum(axis=1)
 
     mask_list = []
     starting_cluster_list = []
@@ -181,7 +187,7 @@ def phase_connector(
     ----------
     toas : TOAs object
     model : model object
-    connection_filter1 : the basic filter for determing what is and what is not phase connected
+    connection_filter : the basic filter for determing what is and what is not phase connected
         options: 'linear', 'polynomial'
     kwargs : an additional constraint on phase connection, can use any number of these
         options: 'wrap', 'degree'
@@ -356,7 +362,7 @@ def save_state(
     ----------
     f : fitter object
     m : model object
-    t : toas object
+    t : TOAs object
     mjds : all mjds of TOAS
     pulsar_name : name of pulsar ('fake_#' in the test cases)
     iteration : how many times the while True loop logic has repeated + 1
@@ -365,7 +371,7 @@ def save_state(
     save_plot : whether to save the plot or not (defaults to False)
     show_plot : whether to display the figure immediately after generation, iterupting the program (defaults to False)
     mask_with_closest : the mask with the non-JUMPed TOAs
-    kwarhs : additional keyword arguments
+    kwargs : additional keyword arguments
 
     Returns
     -------
@@ -560,7 +566,7 @@ def Ftest_param(r_model, fitter, param_name):
 def do_Ftests(t, m, mask_with_closest, args):
     """
     Does the Ftest on the neccesarry parameters
-    t : toas object
+    t : TOAs object
     m : model object
     mask_with_closest : the clusters
     args : command line arguments
@@ -663,44 +669,65 @@ def set_binary_pars_lim(args):
 def quadratic_phase_wrap_checker(
     m, t, mask_with_closest, closest_cluster_mask, b, maxiter_while
 ):
-    t_closest_cluster = deepcopy(t)
-    t_closest_cluster.select(closest_cluster_mask)
+    # may need to use the F-test in here
+    """
+    Checks for phase wraps using the Freire and Ridolfi method.
+
+    Parameters
+    ----------
+    m : model
+    t : TOAs object
+    mask_with_closest : the mask with the non-JUMPed TOAs
+    closest_cluster_mask : the mask with only the closest cluster
+    b : which phase wraps to use as the sample
+    maxiter_while : maxiter for WLS fitting
+
+    Returns
+    -------
+    f, t, chisq_samples, min_wrap_number_total
+    """
     chisq_samples = {}
     f = WLSFitter(t, m)
     for wrap in [-b, 0, b]:
-
+        # m_copy = deepcopy(m)
         t.table["delta_pulse_number"][closest_cluster_mask] = wrap
-
+        # try:
         f.fit_toas(maxiter=maxiter_while)
+        # except ValueError as e: # should maybe fix this by using different values for b if an error is thrown.
+        #     if str(e)[:47] != "Projected semi-major axis A1 cannot be negative":
+        #         raise e
+        #     if args.binary_model.lower() == "ell1":
+        #         # the fitter cannot distinguish between a sinusoid and the negative
+        #         # sinusoid shifted by a half period
+        #         f.model.A1.value = -f.model.A1.value
+        #         f.model.TASC.value = f.model.TASC.value + f.model.PB.value / 2
+        #         f.fit_toas(maxiter=maxiter_while)
 
-        t["delta_pulse_number"] = 0
-        t.compute_pulse_numbers(f.model)
-
-        chisq_samples[wrap] = pint.residuals.Residuals(t, f.model).chi2_reduced
+        # m_copy = do_Ftests(t, m_copy, mask_with_closest, args)
+        chisq_samples[wrap] = f.resids.chi2_reduced
 
     min_wrap = round(
         (b / 2)
         * (chisq_samples[-b] - chisq_samples[b])
         / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
     )
-    # check +1, 0, and -1 wrap from min_wrap
+    # check +1, 0, and -1 wrap from min_wrap just to be safe
+    # TODO: an improvement would be for APTB to continue down each path
+    # of +1, 0, and -1. However, knowing when to cut off a branch
+    # would have to implemented.
     t_wrap_dict = {}
     f_wrap_dict = {}
     chisq_wrap = {}
     for wrap in range(-1, 2):
-        t_plus_minus = deepcopy(t)
-        t_plus_minus.table["delta_pulse_number"][closest_cluster_mask] = min_wrap + wrap
-        f_plus_minus = WLSFitter(t_plus_minus, m)
-        f_plus_minus.fit_toas(maxiter=maxiter_while)
+        t.table["delta_pulse_number"][closest_cluster_mask] = min_wrap + wrap
+        f.fit_toas(maxiter=maxiter_while)
 
-        t_plus_minus["delta_pulse_number"] = 0
-        t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
+        # t_plus_minus["delta_pulse_number"] = 0
+        # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
 
-        chisq_wrap[
-            pint.residuals.Residuals(t_plus_minus, f_plus_minus.model).chi2_reduced
-        ] = wrap
-        t_wrap_dict[wrap] = t_plus_minus
-        f_wrap_dict[wrap] = f_plus_minus
+        chisq_wrap[f.resids.chi2_reduced] = min_wrap + wrap
+        t_wrap_dict[min_wrap + wrap] = deepcopy(t)
+        f_wrap_dict[min_wrap + wrap] = deepcopy(f)
 
     min_chisq = min(chisq_wrap.keys())
 
@@ -709,7 +736,9 @@ def quadratic_phase_wrap_checker(
     t = t_wrap_dict[min_wrap_number_total]
     f = f_wrap_dict[min_wrap_number_total]
 
-    return f, t, chisq_samples, min_wrap
+    print(f"Attemping a phase wrap of {min_wrap_number_total} on closest cluster.")
+
+    return f, t  # , chisq_samples, min_wrap_number_total
 
     # t_closest_cluster.table["delta_pulse_number"] = min_wrap_number_total
     # t.table[closest_cluster_mask] = t_closest_cluster.table
@@ -985,7 +1014,7 @@ def main(args, parser, mask_selector=None):
         # all but one of the masks
         if mask_selector is not None and mask_number != mask_selector:
             continue
-        if starting_cluster != 0:
+        if starting_cluster != 22:
             continue
         print(
             f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
@@ -1357,6 +1386,8 @@ def main(args, parser, mask_selector=None):
 if __name__ == "__main__":
     import argparse
     import sys
+
+    pint.logging.setup(level="ERROR")
 
     start_time = time.monotonic()
     parser = argparse.ArgumentParser(
