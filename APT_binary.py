@@ -324,6 +324,7 @@ def save_state(
     args,
     save_plot=False,
     show_plot=False,
+    mask_with_closest=None,
     **kwargs,
 ):
     m_copy = deepcopy(m)
@@ -356,12 +357,20 @@ def save_state(
     if save_plot or show_plot:
         fig, ax = plt.subplots(figsize=(12, 7))
 
-        fig, ax = plot_plain(f, mjds, t, m, iteration, fig, ax)
-        if kwargs.get("mask_with_closest") is not None:
-            temp_mask = kwargs.get("mask_with_closest")
+        if mask_with_closest is not None:
             fig, ax = plot_plain(
-                f, mjds[temp_mask], t[temp_mask], m, iteration, fig, ax
+                f,
+                mjds,
+                t,
+                m,
+                iteration,
+                fig,
+                ax,
+                mask_with_closest=mask_with_closest,
             )
+        else:
+            fig, ax = plot_plain(f, mjds, t, m, iteration, fig, ax)
+
         # ax.plot(
         #     t.get_mjds().value,
         #     pint.residuals.Residuals(t, m_copy).calc_phase_resids(),
@@ -379,27 +388,27 @@ def save_state(
     return True
 
 
-def plot_plain(
-    f,
-    mjds,
-    t,
-    m,
-    iteration,
-    fig,
-    ax,
-):
+def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
     # plot post fit residuals with error bars
-
     model0 = deepcopy(m)
+    r = pint.residuals.Residuals(t, model0).time_resids.to(u.us).value
 
     xt = mjds
     ax.errorbar(
         mjds,
-        pint.residuals.Residuals(t, m).time_resids.to(u.us).value,
+        r,
         t.get_errors().to(u.us).value,
         fmt=".b",
         label="post-fit",
     )
+
+    if mask_with_closest is not None:
+        ax.errorbar(
+            mjds[mask_with_closest],
+            r[mask_with_closest],
+            t.get_errors().to(u.us).value[mask_with_closest],
+            fmt=".r",
+        )
 
     # string of fit parameters for plot title
     fitparams = ""
@@ -414,7 +423,6 @@ def plot_plain(
     plt.title(f"{m.PSR.value} Post-Fit Residuals {iteration} | fit params: {fitparams}")
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
-    r = pint.residuals.Residuals(t, model0).time_resids.to(u.us).value
 
     # set the y limit to be just above and below the max and min points
     yrange = abs(max(r) - min(r))
@@ -600,30 +608,28 @@ def set_binary_pars_lim(args):
 def quadratic_phase_wrap_checker(
     m, t, mask_with_closest, closest_cluster_mask, b, maxiter_while
 ):
-    chisq_samples = {0: pint.residuals.Residuals(t, m).chi2_reduced}
-    t_closest_cluster = t[closest_cluster_mask]
+    t_closest_cluster = deepcopy(t)
+    t_closest_cluster.select(closest_cluster_mask)
+    chisq_samples = {}
+    t_samples = {}
+    f_samples = {}
+    for wrap in [-b, 0, b]:
 
-    t_plus_b = deepcopy(t)
-    t_minus_b = deepcopy(t)
+        t_wrapped = deepcopy(t)
 
-    t_plus_b.table["delta_pulse_number"][closest_cluster_mask] = b
-    t_minus_b.table["delta_pulse_number"][closest_cluster_mask] = -b
+        t_wrapped.table["delta_pulse_number"][closest_cluster_mask] = wrap
 
-    f_plus_b = WLSFitter(t_plus_b, m)
-    f_minus_b = WLSFitter(t_minus_b, m)
+        f_wrapped = WLSFitter(t_wrapped, m)
+        f_wrapped.fit_toas(maxiter=maxiter_while)
 
-    f_plus_b.fit_toas(maxiter=maxiter_while)
-    f_minus_b.fit_toas(maxiter=maxiter_while)
+        t_wrapped["delta_pulse_number"] = 0
+        t_wrapped.compute_pulse_numbers(f_wrapped.model)
 
-    t_plus_b["delta_pulse_number"] = 0
-    t_minus_b["delta_pulse_number"] = 0
-    t_plus_b.compute_pulse_numbers(f_plus_b.model)
-    t_minus_b.compute_pulse_numbers(f_minus_b.model)
-
-    chisq_samples[b] = pint.residuals.Residuals(t_plus_b, f_plus_b.model).chi2_reduced
-    chisq_samples[-b] = pint.residuals.Residuals(
-        t_minus_b, f_minus_b.model
-    ).chi2_reduced
+        chisq_samples[wrap] = pint.residuals.Residuals(
+            t_wrapped, f_wrapped.model
+        ).chi2_reduced
+        t_samples[wrap] = t_wrapped
+        f_samples[wrap] = f_wrapped
 
     min_wrap = round(
         (b / 2)
@@ -631,26 +637,35 @@ def quadratic_phase_wrap_checker(
         / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
     )
     # check +1, 0, and -1 wrap from min_wrap
-    t_wrap_list = []
-    f_wrap_list = []
+    t_wrap_dict = {}
+    f_wrap_dict = {}
     chisq_wrap = {}
     for wrap in range(-1, 2):
-        t_wrap = deepcopy(t)
-        t_wrap.table["delta_pulse_number"][closest_cluster_mask] = min_wrap + wrap
-        f_wrap = WLSFitter(t_wrap, m)
-        f_wrap.fit_toas(maxiter=maxiter_while)
+        t_plus_minus = deepcopy(t)
+        t_plus_minus.table["delta_pulse_number"][closest_cluster_mask] = min_wrap + wrap
+        f_plus_minus = WLSFitter(t_plus_minus, m)
+        f_plus_minus.fit_toas(maxiter=maxiter_while)
 
-        t_wrap["delta_pulse_number"] = 0
-        t_wrap.compute_pulse_numbers(f_wrap.model)
+        t_plus_minus["delta_pulse_number"] = 0
+        t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
 
-        chisq_wrap[pint.residuals.Residuals(t_wrap, f_wrap.model).chi2_reduced] = wrap
+        chisq_wrap[
+            pint.residuals.Residuals(t_plus_minus, f_plus_minus.model).chi2_reduced
+        ] = wrap
+        t_wrap_dict[wrap] = t_plus_minus
+        f_wrap_dict[wrap] = f_plus_minus
 
     min_chisq = min(chisq_wrap.keys())
 
     min_wrap_number_total = chisq_wrap[min_chisq]
 
-    t_closest_cluster.table["delta_pulse_number"] = min_wrap_number_total
-    t.table[closest_cluster_mask] = t_closest_cluster.table
+    t = t_wrap_dict[min_wrap_number_total]
+    f = f_wrap_dict[min_wrap_number_total]
+
+    return f, t
+
+    # t_closest_cluster.table["delta_pulse_number"] = min_wrap_number_total
+    # t.table[closest_cluster_mask] = t_closest_cluster.table
 
 
 def APT_argument_parse(parser, argv):
@@ -829,6 +844,12 @@ def APT_argument_parse(parser, argv):
         help="whether to include multiprocessing or not (t/f)",
         type=str,
         default="f",
+    )  # check_phase_wraps
+    parser.add_argument(
+        "--check_phase_wraps",
+        help="whether to check for phase wraps or not (t/f)",
+        type=str,
+        default="t",
     )
 
     args = parser.parse_args(argv)
@@ -839,6 +860,7 @@ def APT_argument_parse(parser, argv):
     args.plot_bad_points = args.plot_bad_points.lower()[0] == "t"
     args.plot_final = args.plot_final.lower()[0] == "t"
     args.multiprocessing = args.multiprocessing.lower()[0] == "t"
+    args.check_phase_wraps = args.check_phase_wraps.lower()[0] == "t"
 
     return args, parser
 
@@ -961,6 +983,12 @@ def main(args, parser, mask_selector=None):
             residuals=residuals_start,
             wraps=True,
         )
+
+        # save_state records the par and tim files of the current state and graphs a figure.
+        # It also checks if A1 is negative and if it is, it will ask the user if APTB
+        # should attempt to fix it. When other binary models are implemented, other
+        # types of checks for their respective models would need to be implemented here,
+        # provided easy fixes are available.
         if not save_state(
             m=m,
             t=t,
@@ -1108,14 +1136,20 @@ def main(args, parser, mask_selector=None):
                 break
 
             # TODO add pontential phase wraps here
-            m, t = quadratic_phase_wrap_checker(
-                m, t, mask_with_closest, closest_cluster_mask, maxiter_while
-            )
-
-            f = pint.fitter.WLSFitter(t, m)
-            f.fit_toas(maxiter=maxiter_while)
-            t.table["delta_pulse_number"] = 0
-            t.compute_pulse_numbers(f.model)
+            if args.check_phase_wraps:
+                f, t = quadratic_phase_wrap_checker(
+                    m,
+                    t,
+                    mask_with_closest,
+                    closest_cluster_mask,
+                    b=5,
+                    maxiter_while=maxiter_while,
+                )
+            else:
+                f = pint.fitter.WLSFitter(t, m)
+                f.fit_toas(maxiter=maxiter_while)
+                t.table["delta_pulse_number"] = 0
+                t.compute_pulse_numbers(f.model)
             m = f.model
 
             # use random models, or design matrix method to determine if next
@@ -1149,6 +1183,7 @@ def main(args, parser, mask_selector=None):
                 folder=alg_saves_mask_Path,
                 iteration=iteration,
                 save_plot=True,
+                mask_with_closest=mask_with_closest,
             ):
                 skip_mask = True
                 break
