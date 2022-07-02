@@ -30,7 +30,7 @@ def ELL1(A1, EPS1, EPS2, PB, TASC, span) -> dict:
     Sets the parameters for a binary pulsar with a low eccentricity.
     See pint.models.binary_ell1.py and pint.models.pulsar_binary.py for more info.
     """
-    e = r.uniform(1e-5, 3e-2)  # eccentricity
+    e = r.uniform(1e-7, 7e-4)  # eccentricity
     w = r.uniform(0, 2 * np.pi)  # longitude of periastron
     if A1 is None or A1 == "None":
         # cosi = r.uniform(0, 1)
@@ -77,11 +77,11 @@ def ELL1_blur(a1, eps1, eps2, pb, tasc):
     # a1, eps1, eps2, pb, tasc = (0, 0), (0,0), (0, 0), (0, 0), (0, 0)
     a1 = (a1[0] + r.uniform(0, 0.01) * a1[0], 0.1)
     eps1 = (0, 0)
-    eps2 = (0,0)
+    eps2 = (0, 0)
     # eps1 = (eps1[0] + r.uniform(0, 0.001) * eps1[0], 0.1)
     # eps2 = (eps2[0] + r.uniform(0, 0.001) * eps2[0], 0.1)
     pb = (pb[0] + r.uniform(0, 0.001) * pb[0], 0.1)
-    tasc = (tasc[0] + r.uniform(0, 0.001) * tasc[0], 0.1)
+    tasc = (tasc[0] + r.uniform(-0.2, 0.2), 0.1)
 
     binary_pars = {
         "A1": a1,

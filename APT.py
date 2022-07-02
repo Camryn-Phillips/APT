@@ -19,6 +19,7 @@ import csv
 import operator
 import time
 from pathlib import Path
+import socket
 
 __all__ = ["main"]
 
@@ -33,7 +34,7 @@ def add_phase_wrap(toas, model, selected, phase):
     :param phase: phase diffeence to be added, i.e.  -0.5, +2, etc.
     """
     # Check if pulse numbers are in table already, if not, make the column
-    #if "pn" not in toas.table.colnames:
+    # if "pn" not in toas.table.colnames:
     if "pulse_number" not in toas.table.colnames:
         toas.compute_pulse_numbers(model)
     if "delta_pulse_number" not in toas.table.colnames:
@@ -94,7 +95,7 @@ def starting_points(toas, start_type):
     return mask_list[:5]
 
 
-def get_closest_group(all_toas, fit_toas, base_TOAs):
+def get_closest_cluster(all_toas, fit_toas, base_TOAs):
     """
     find the closest group of TOAs to the given toa(s)
 
@@ -398,11 +399,7 @@ def bad_points(
         plt.show()
 
     else:
-        os.chdir(data_path)
-        plt.savefig(
-            f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png"
-        )
-        os.chdir(original_path)
+        plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_B.png")
         plt.clf()
 
     if (
@@ -744,11 +741,7 @@ def plot_wraps(
     secaxy.set_ylabel("residuals (phase)")
 
     # save the image in alg_saves with the iteration and wrap number
-    os.chdir(data_path)
-    plt.savefig(
-        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png"
-    )
-    os.chdir(original_path)
+    plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}_P{wrap:03d}.png")
     plt.close()
 
 
@@ -817,11 +810,7 @@ def plot_plain(
     secaxy = ax.secondary_yaxis("right", functions=(us_to_phase, phase_to_us))
     secaxy.set_ylabel("residuals (phase)")
 
-    os.chdir(data_path)
-    plt.savefig(
-        f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png"
-    )
-    os.chdir(original_path)
+    plt.savefig(f"./alg_saves/{sys_name}/{sys_name}_{iteration:03d}.png")
     plt.close()
 
 
@@ -908,7 +897,7 @@ def do_Ftests_phases(m_phases, t_phases, f_phases, args):
     Ftests_phase_keys = [key for key in Ftests_phase.keys() if type(key) != bool]
 
     # if nothing in the Ftests list, continue to next step. Print message if long enough span that all params should be added
-    if not bool(Ftests_phase_keys):
+    if not Ftests_phase_keys:
         if span > 100 * u.d:
             print("F1, RAJ, DECJ, and F1 have been added.")
 
@@ -948,7 +937,8 @@ def calc_random_models(base_TOAs, f, t, args):
         pint.residuals.Residuals(base_TOAs_copy, f.model).phase_resids[selected].mean()
     )
 
-    # produce several (n_pred) random models given the fitter object and mean residual. return the random models, their residuals, and evenly spaced toas to plot against
+    # produce several (n_pred) random models given the fitter object and mean residual.
+    # return the random models, their residuals, and evenly spaced toas to plot against
     f_toas, rss, rmods = pint.random_models.random_models(
         f,
         rs_mean,
@@ -968,7 +958,6 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs, data_path, original_p
     last_mask = deepcopy(mask)
 
     # write these to a par, tim and txt file to be saved and reloaded
-    os.chdir(data_path)
     par_pntr = open(
         "./alg_saves/" + sys_name + "/" + sys_name + "_" + str(iteration) + ".par", "w"
     )
@@ -990,7 +979,6 @@ def save_state(m, t, mask, sys_name, iteration, base_TOAs, data_path, original_p
 
     par_pntr.close()
     mask_pntr.close()
-    os.chdir(original_path)
 
     return last_model, last_t, last_mask
 
@@ -1019,7 +1007,9 @@ def main(argv=None):
 
     """required = parfile, timfile"""
     """optional = starting points, param ranges"""
-    parser = argparse.ArgumentParser(description="PINT tool for simulating TOAs")
+    parser = argparse.ArgumentParser(
+        description="PINT tool for agorithmically timing pulsars."
+    )
 
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
@@ -1174,10 +1164,10 @@ def main(argv=None):
         default="",
     )
     parser.add_argument(
-    "--chisq_cutoff",
-    help="",
-    type=float,
-    default=10,
+        "--chisq_cutoff",
+        help="",
+        type=float,
+        default=10,
     )
 
     args = parser.parse_args(argv)
@@ -1211,29 +1201,34 @@ def main(argv=None):
     original_path = Path.cwd()
     data_path = Path(args.data_path)
 
-    # FIXME When fulled implemented, DELETE the following line
-    data_path = Path("/data1/people/jdtaylor")
+    #### FIXME When fulled implemented, DELETE the following lines
+    if socket.gethostname()[0] == "J":
+        data_path = Path.cwd()
+    else:
+        data_path = Path("/data1/people/jdtaylor")
+    ####
+    os.chdir(data_path)
 
     # read in the toas
-    print(Path.cwd())
     t = pint.toa.get_TOAs(timfile)
     sys_name = str(mb.get_model(parfile).PSR.value)
+
+    # check that there is a directory to save the algorithm state in
+    if not Path("alg_saves").exists():
+        Path("alg_saves").mkdir()
+
+    # checks there is a directory specific to the system in alg_saves
+    if not Path(f"alg_saves/{sys_name}").exists():
+        Path(f"alg_saves/{sys_name}").mkdir()
 
     # set F1_lim if one not given
     set_F1_lim(args, parfile)
 
-    # check that there is a directory to save the algorithm state in
-    os.chdir(data_path)
-    if not Path.exists(Path("alg_saves")):
-        Path.mkdir(Path("alg_saves"))
-
-    # checks there is a directory specific to the system in alg_saves
-    if not Path.exists(Path(f"alg_saves/{sys_name}")):
-        Path.mkdir(Path(f"alg_saves/{sys_name}"))
-
-    os.chdir(original_path)
-
+    masknumber = -1
     for mask in starting_points(t, start_type):
+        print(mask)
+        # raise Exception("Quit")
+        masknumber += 1
         # starting_points returns a list of boolean arrays, each a mask for the base toas. Iterating through all of them give different pairs of starting points
         # read in the initial model
         m = mb.get_model(parfile)
@@ -1254,7 +1249,7 @@ def main(argv=None):
         #        print("WARNING: APT only fits for F0, RAJ, DECJ, and F1. All other parameters should be turned off. Turning off parameter ", parameter)
         #        getattr(m, parameter).frozen = True
 
-        # Read in the TOAs and compute ther pulse numbers
+        # Read in the TOAs and compute their pulse numbers
         t = pint.toa.get_TOAs(timfile)
 
         # Print a summary of the TOAs that we have
@@ -1324,12 +1319,12 @@ def main(argv=None):
             t_others = deepcopy(base_TOAs)
 
             # calculate the group closest to the fit toas, pass deepcopies to prevent unintended pass by reference
-            closest_group, dist = get_closest_group(
+            closest_group, dist = get_closest_cluster(
                 deepcopy(t_others), deepcopy(t), deepcopy(base_TOAs)
             )
             print("closest group:", closest_group)
 
-            if closest_group == None:
+            if closest_group is None:
                 # end the program
                 # print the final model and toas
                 # save the latest model as a new parfile (all done at end of code)
@@ -1378,7 +1373,7 @@ def main(argv=None):
                 )
 
             # if difference in phase is >0.15, and not a bad point, try phase wraps to see if point fits better wrapped
-            if np.abs(diff) > args.check_bp_min_diff and skip_phases == False:
+            if np.abs(diff) > args.check_bp_min_diff and skip_phases is False:
                 f_phases = []
                 t_phases = []
                 t_others_phases = []
@@ -1481,9 +1476,9 @@ def main(argv=None):
                 # fit toas just in case
                 f.fit_toas()
                 print("Current Fit Params:", f.get_fitparams().keys())
-                # END INDENT FOR RESID > 0.35
+                # END INDENT FOR RESID > 0.15
 
-            # if not resid > 0.35, run as normal
+            # if not resid > 0.15, run as normal
             else:
                 # t is the current fit toas, t_others is the current fit toas plus the closest group, and a is the same as t_others
 
@@ -1506,9 +1501,9 @@ def main(argv=None):
                             m,
                             mask,
                         )
-                    except:
+                    except Exception as e:
                         print(
-                            "an error occurred while trying to do polynomial extrapolation. Continuing on"
+                            f"an error occurred while trying to do polynomial extrapolation. Continuing on. ({e})"
                         )
 
                 chi2_summary = []
@@ -1539,7 +1534,7 @@ def main(argv=None):
                 )
                 print(f"chi2 stdev on fit TOAs: {np.std(chi2_summary)}")
                 print(
-                    "chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}"
+                    f"chi2 stdev on fit TOAs plus closest group: {np.std(chi2_ext_summary)}"
                 )
 
                 print(f"Current Fit Params: {f.get_fitparams().keys()}")
@@ -1614,20 +1609,16 @@ def main(argv=None):
         # residuals
         r = pint.residuals.Residuals(t, f.model)
         r_plus = pint.residuals.Residuals(t, f_plus.model)
-        if r_plus.chi2 >= r.chi2:
-            """ignore"""
-        else:
+        if r_plus.chi2 <= r.chi2:
             f = deepcopy(f_plus)
 
         # save final model as .fin file
         print("Final Model:\n", f.model.as_parfile())
 
         # save as .fin
-        os.chdir(data_path)
         fin_name = f.model.PSR.value + ".fin"
         with open(fin_name, "w") as finfile:
             finfile.write(f.model.as_parfile())
-        os.chdir(original_path)
 
         # plot final residuals if plot_final True
         xt = t.get_mjds()
@@ -1650,7 +1641,7 @@ def main(argv=None):
         ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
         ax.set_xlabel("MJD")
         ax.set_ylabel("Residual (us)")
-        twinx.set_ylabel("Residual (phase)", labelpad = 15)
+        twinx.set_ylabel("Residual (phase)", labelpad=15)
         span = (0.5 / float(f.model.F0.value)) * (10**6)
         plt.grid()
 
@@ -1658,12 +1649,10 @@ def main(argv=None):
         print(
             f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
         )
-        if args.plot_final == True:
+        if args.plot_final:
             plt.show()
 
-        os.chdir(data_path)
-        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches = "tight")
-        os.chdir(original_path)
+        fig.savefig(f"./alg_saves/{sys_name}/{sys_name}_final.png", bbox_inches="tight")
         plt.clf()
 
         # if success, stop trying and end program
