@@ -24,6 +24,7 @@ import socket
 from APT import get_closest_cluster, solution_compare, bad_points
 import APT_binary_extension
 import argparse
+from loguru import logger as log
 
 
 class StartingJumpError(Exception):
@@ -83,50 +84,8 @@ def starting_points(toas, args=None, score_function="original", **kwargs):
     return (mask_list[:max_starts], starting_cluster_list[:max_starts])
 
 
-def JUMP_adder_begginning(
-    mask: np.ndarray, toas, model, output_parfile, output_timfile
-):
-    """
-    Adds JUMPs to a timfile as the begginning of analysis.
-
-    Parameters
-    ----------
-    mask : a mask to select which toas will not be jumped
-    toas : TOA object
-    output_timfile : name for the tim file to be written
-    output_parfile : name for par file to be written
-
-    Returns
-    -------
-    model, t
-    """
-    t = deepcopy(toas)
-    flag_name = "jump_tim"
-
-    former_cluster = t.table[mask]["clusters"][0]
-    j = 0
-    for i, table in enumerate(t.table[~mask]):
-        if table["clusters"] != former_cluster:
-            former_cluster = table["clusters"]
-            j += 1
-        table["flags"][flag_name] = str(j)
-    t.write_TOA_file(output_timfile)
-
-    # model.jump_flags_to_params(t) doesn't currently work (need flag name to be "tim_jump" and even then it still won't work),
-    # so the following is a workaround. This is likely related to issue 1294.
-    ### (workaround surrounded in ###)
-    with open(output_parfile, "w") as parfile:
-        parfile.write(model.as_parfile())
-        for i in range(1, j + 1):
-            parfile.write(f"JUMP\t\t-{flag_name} {i}\t0 1 0\n")
-    model = mb.get_model(output_parfile)
-    ###
-
-    return model, t
-
-
 def JUMP_adder_begginning_cluster(
-    mask: np.ndarray, toas, model, output_parfile, output_timfile
+    mask: np.ndarray, t, model, output_parfile, output_timfile
 ):
     """
     Adds JUMPs to a timfile as the begginning of analysis.
@@ -136,7 +95,7 @@ def JUMP_adder_begginning_cluster(
     Parameters
     ----------
     mask : a mask to select which toas will not be jumped
-    toas : TOA object
+    t : TOAs object
     model : model object
     output_parfile : name for par file to be written
     output_timfile : name for the tim file to be written
@@ -145,7 +104,6 @@ def JUMP_adder_begginning_cluster(
     -------
     model, t
     """
-    t = deepcopy(toas)
     if "clusters" not in t.table.columns:
         t.table["clusters"] = t.get_clusters()
     flag_name = "jump_tim"
@@ -513,13 +471,20 @@ def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
 
 def Ftest_param(r_model, fitter, param_name):
     """
-    do an Ftest comparing a model with and without a particular parameter added
+    do an F-test comparing a model with and without a particular parameter added
 
     Note: this is NOT a general use function - it is specific to this code and cannot be easily adapted to other scripts
-    :param r_model: timing model to be compared
-    :param fitter: fitter object containing the toas to compare on
-    :param param_name: name of the timing model parameter to be compared
-    :return
+
+    Parameters
+    ----------
+    r_model : timing model to be compared
+    fitter : fitter object containing the toas to compare on
+    param_name : name of the timing model parameter to be compared
+
+    Returns
+    -------
+    float
+        the value of the F-test
     """
     # read in model and toas
     m_plus_p = deepcopy(r_model)
@@ -567,6 +532,9 @@ def Ftest_param(r_model, fitter, param_name):
 def do_Ftests(t, m, mask_with_closest, args):
     """
     Does the Ftest on the neccesarry parameters
+
+    Parameters
+    ----------
     t : TOAs object
     m : model object
     mask_with_closest : the clusters
@@ -639,7 +607,18 @@ def do_Ftests(t, m, mask_with_closest, args):
 
 
 def set_F1_lim(args, parfile):
-    # if F1_lim not specified in command line, calculate the minimum span based on general F0-F1 relations from P-Pdot diagram
+    """
+    if F1_lim not specified in command line, calculate the minimum span based on general F0-F1 relations from P-Pdot diagram
+
+    Parameters
+    ----------
+    args : command line arguments
+    parfile : parfile
+
+    Returns
+    -------
+    None
+    """
 
     if args.F1_lim == None:
         # for slow pulsars, allow F1 to be up to 1e-12 Hz/s, for medium pulsars, 1e-13 Hz/s, otherwise, 1e-14 Hz/s (recycled pulsars)
@@ -668,9 +647,15 @@ def set_binary_pars_lim(args):
 
 
 def quadratic_phase_wrap_checker(
-    m, t, mask_with_closest, closest_cluster_mask, b, maxiter_while
+    m,
+    t,
+    mask_with_closest,
+    closest_cluster_mask,
+    b,
+    maxiter_while,
+    closest_cluster,
 ):
-    # may need to use the F-test in here
+    # TODO may need to use the F-test in here
     """
     Checks for phase wraps using the Freire and Ridolfi method.
 
@@ -682,30 +667,41 @@ def quadratic_phase_wrap_checker(
     closest_cluster_mask : the mask with only the closest cluster
     b : which phase wraps to use as the sample
     maxiter_while : maxiter for WLS fitting
+    closest_cluster : the cluster number of the closest cluster
 
     Returns
     -------
-    f, t, chisq_samples, min_wrap_number_total
+    f, t
     """
-    chisq_samples = {}
-    f = WLSFitter(t, m)
-    for wrap in [-b, 0, b]:
-        # m_copy = deepcopy(m)
-        t.table["delta_pulse_number"][closest_cluster_mask] = wrap
-        # try:
-        f.fit_toas(maxiter=maxiter_while)
-        # except ValueError as e: # should maybe fix this by using different values for b if an error is thrown.
-        #     if str(e)[:47] != "Projected semi-major axis A1 cannot be negative":
-        #         raise e
-        #     if args.binary_model.lower() == "ell1":
-        #         # the fitter cannot distinguish between a sinusoid and the negative
-        #         # sinusoid shifted by a half period
-        #         f.model.A1.value = -f.model.A1.value
-        #         f.model.TASC.value = f.model.TASC.value + f.model.PB.value / 2
-        #         f.fit_toas(maxiter=maxiter_while)
+    # run from highest to lowest b until no error is raised
+    for b_i in range(b, -1, -1):
+        chisq_samples = {}
+        f = WLSFitter(t, m)
+        try:
+            for wrap in [-b_i, 0, b_i]:
+                # m_copy = deepcopy(m)
+                t.table["delta_pulse_number"][closest_cluster_mask] = wrap
+                f.fit_toas(maxiter=maxiter_while)
+                # m_copy = do_Ftests(t, m_copy, mask_with_closest, args)
+                chisq_samples[wrap] = f.resids.chi2_reduced
+                # if the loop did not encounter an error, then reassign b and end the loop
+                b = b_i
+                break
 
-        # m_copy = do_Ftests(t, m_copy, mask_with_closest, args)
-        chisq_samples[wrap] = f.resids.chi2_reduced
+        except Exception as e:
+            # try running it again with a lower b
+            # sometimes if b is too high, APTB wants to fit the samples phase
+            # wraps by allowing A1 to be negative, which should be avoided
+            if b < 1:
+                log.warning(f"QuadraticPhaseWrapCheckerError: b_i is {b_i}")
+                print(e)
+                response = input(
+                    "Should APTB continue anyway, assuming no phase wraps for the next cluster? (y/n)"
+                )
+                if response == "y":
+                    return WLSFitter(t, m), t
+                else:
+                    raise e
 
     min_wrap = round(
         (b / 2)
@@ -737,7 +733,9 @@ def quadratic_phase_wrap_checker(
     t = t_wrap_dict[min_wrap_number_total]
     f = f_wrap_dict[min_wrap_number_total]
 
-    print(f"Attemping a phase wrap of {min_wrap_number_total} on closest cluster.")
+    print(
+        f"Attemping a phase wrap of {min_wrap_number_total} on closest cluster (cluster {closest_cluster})."
+    )
 
     return f, t  # , chisq_samples, min_wrap_number_total
 
@@ -921,12 +919,18 @@ def APT_argument_parse(parser, argv):
         help="whether to include multiprocessing or not (t/f)",
         type=str,
         default="f",
-    )  # check_phase_wraps
+    )
     parser.add_argument(
         "--check_phase_wraps",
         help="whether to check for phase wraps or not (t/f)",
         type=str,
         default="t",
+    )
+    parser.add_argument(
+        "--maxiter_while",
+        help="sets the maxiter argument for f.fit_toas for fittings done within the while loop",
+        type=int,
+        default=1,
     )
 
     args = parser.parse_args(argv)
@@ -1015,7 +1019,8 @@ def main(args, parser, mask_selector=None):
     set_F1_lim(args, parfile)
 
     # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
-    maxiter_while = 2
+    # (default to 2)
+    maxiter_while = args.maxiter_while
 
     mask_list, starting_cluster_list = starting_points(toas)
     for mask_number, mask in enumerate(mask_list):
@@ -1088,6 +1093,7 @@ def main(args, parser, mask_selector=None):
         print("Fitting...")
         f = WLSFitter(t, m)
         print("BEFORE:", f.get_fitparams())
+        # changing maxiter here may have some effects
         print(f.fit_toas(maxiter=2))
 
         print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
@@ -1118,7 +1124,12 @@ def main(args, parser, mask_selector=None):
 
         # something is certaintly wrong if the reduced chisq is greater that 3 at this stage,
         # so APTB should not waste time attempting to coerce a solution
-        if pint.residuals.Residuals(t, m).chi2_reduced > 3:
+        chisq_start = pint.residuals.Residuals(t, m).chi2_reduced
+        log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
+        if chisq_start > 3:
+            log.warning(
+                f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
+            )
             plt.plot(
                 mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids(), "o"
             )
@@ -1128,6 +1139,7 @@ def main(args, parser, mask_selector=None):
                 + "This is adnormally high, should APTB continue anyway? (y/n)"
             )
             if response.lower() != "y":
+                log.warning("StartingJumpError")
                 raise StartingJumpError(
                     "Reduced chisq adnormally high, quitting program."
                 )
@@ -1155,7 +1167,7 @@ def main(args, parser, mask_selector=None):
             closest_cluster, dist = get_closest_cluster(
                 deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
             )
-            print("closest group:", closest_cluster)
+            print("closest cluster:", closest_cluster)
             if closest_cluster is None:
                 # end the program
                 break
@@ -1228,6 +1240,7 @@ def main(args, parser, mask_selector=None):
                     closest_cluster_mask,
                     b=5,
                     maxiter_while=maxiter_while,
+                    closest_cluster=closest_cluster,
                 )
             else:
                 f = pint.fitter.WLSFitter(t, m)
@@ -1397,7 +1410,7 @@ def main(args, parser, mask_selector=None):
 if __name__ == "__main__":
     import sys
 
-    pint.logging.setup(level="ERROR")
+    pint.logging.setup(level="WARNING")
     global args, parser
 
     start_time = time.monotonic()
@@ -1413,9 +1426,14 @@ if __name__ == "__main__":
         # from multiprocessing.pool import ThreadPool as Pool
 
         print("\n\nMultiprocessing in use!\n")
+        log.warning(
+            "Using muliprocessing while running APTB on several pulsars will not notably increase\n"
+            + "the efficiency due to multiprocessing using multiple cores anyway."
+        )
         with Pool(args.max_starts) as p:
             # settting args and parser to None is needed to prevent the multiprocessing
-            # package from trying to pickle them, giving an error
+            # package from trying to pickle them, giving an error.
+            # doing it this way also prevents the need for globals
             print(
                 p.starmap(
                     main,
