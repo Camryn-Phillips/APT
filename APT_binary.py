@@ -23,6 +23,7 @@ from pathlib import Path
 import socket
 from APT import get_closest_cluster, solution_compare, bad_points
 import APT_binary_extension
+import argparse
 
 
 class StartingJumpError(Exception):
@@ -942,6 +943,16 @@ def APT_argument_parse(parser, argv):
 
 
 def main(args, parser, mask_selector=None):
+
+    if args is None:
+        # need to run this again if not previously specified
+        parser = argparse.ArgumentParser(
+            description="PINT tool for agorithmically timing binary pulsars."
+        )
+        args, parser = APT_argument_parse(parser, argv=None)
+        print(args)
+        raise Exception("test stop")
+
     # import argparse
     # import sys
 
@@ -1384,10 +1395,10 @@ def main(args, parser, mask_selector=None):
 
 
 if __name__ == "__main__":
-    import argparse
     import sys
 
     pint.logging.setup(level="ERROR")
+    global args, parser
 
     start_time = time.monotonic()
     parser = argparse.ArgumentParser(
@@ -1396,17 +1407,20 @@ if __name__ == "__main__":
     args, parser = APT_argument_parse(parser, argv=None)
 
     if args.multiprocessing:
-        # from multiprocessing import Pool
+        from multiprocessing import Pool
+
         # from pathos.multiprocessing import ProcessingPool as Pool
-        from multiprocessing.pool import ThreadPool as Pool
+        # from multiprocessing.pool import ThreadPool as Pool
 
         print("\n\nMultiprocessing in use!\n")
         with Pool(args.max_starts) as p:
+            # settting args and parser to None is needed to prevent the multiprocessing
+            # package from trying to pickle them, giving an error
             print(
                 p.starmap(
                     main,
                     [
-                        (args, parser, mask_selector)
+                        (None, None, mask_selector)
                         for mask_selector in range(args.max_starts)
                     ],
                 )
