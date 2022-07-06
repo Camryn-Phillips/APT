@@ -31,7 +31,7 @@ class StartingJumpError(Exception):
     pass
 
 
-def starting_points(toas, args=None, score_function="original", **kwargs):
+def starting_points(toas, args=None, score_function="original", power=0.3, **kwargs):
     """
     Choose which cluster to NOT jump, i.e. where to start
 
@@ -55,8 +55,9 @@ def starting_points(toas, args=None, score_function="original", **kwargs):
         score_list = (1.0 / dts).sum(axis=1)
     # different powers give different starting masks
     elif score_function == "original_different_power":
-        power = kwargs.get("power", 0.3)
         score_list = (1.0 / dts**power).sum(axis=1)
+    else:
+        raise TypeError(f"score function '{score_function}' not understood")
 
     mask_list = []
     starting_cluster_list = []
@@ -166,6 +167,9 @@ def phase_connector(
     toas.table["delta_pulse_number"] = np.zeros(len(toas.get_mjds()))
     toas.compute_pulse_numbers(model)
 
+    if mjds_total is None:
+        mjds_total = toas.get_mjds().value
+
     if cluster == "all":
         if connection_filter == "np.unwrap":
             t = deepcopy(toas)
@@ -193,8 +197,6 @@ def phase_connector(
             )
         return
 
-    if mjds_total is None:
-        mjds_total = toas.get_mjds().value
     if "clusters" not in toas.table.columns:
         toas.table["clusters"] = toas.get_clusters()
     # if "pulse_number" not in toas.table.colnames:  ######
@@ -654,6 +656,11 @@ def quadratic_phase_wrap_checker(
     b,
     maxiter_while,
     closest_cluster,
+    args,
+    folder=None,
+    wrap_checker_iteration=1,
+    iteration=1,
+    pulsar_name="fake",
 ):
     # TODO may need to use the F-test in here
     """
@@ -668,31 +675,47 @@ def quadratic_phase_wrap_checker(
     b : which phase wraps to use as the sample
     maxiter_while : maxiter for WLS fitting
     closest_cluster : the cluster number of the closest cluster
+    args : command line arguments
+    folder : where to save any data
+    wrap_checker_iteration : the number of times quadratic_phase_wrap_checker has
+        done recursion
+    iteration : the iteration of the while loop of the main algorithm
 
     Returns
     -------
     f, t
     """
-    # run from highest to lowest b until no error is raised
+    # if quadratic_phase_wrap_checker gets called a second time through recursion, throw an error
+    if wrap_checker_iteration >= 3:
+        raise RecursionError("maximum recursion depth exceeded (3)")
+
+    # run from highest to lowest b until no error is raised.
+    # ideally, only b_i = b is run
+    t_copy = deepcopy(t)
     for b_i in range(b, -1, -1):
-        chisq_samples = {}
         f = WLSFitter(t, m)
+        chisq_samples = {}
         try:
             for wrap in [-b_i, 0, b_i]:
+                # print(f"wrap is {wrap}")
                 # m_copy = deepcopy(m)
                 t.table["delta_pulse_number"][closest_cluster_mask] = wrap
                 f.fit_toas(maxiter=maxiter_while)
                 # m_copy = do_Ftests(t, m_copy, mask_with_closest, args)
                 chisq_samples[wrap] = f.resids.chi2_reduced
-                # if the loop did not encounter an error, then reassign b and end the loop
-                b = b_i
-                break
+                f.reset_model()
+
+            # if the loop did not encounter an error, then reassign b and end the loop
+            b = b_i
+            break
 
         except Exception as e:
             # try running it again with a lower b
             # sometimes if b is too high, APTB wants to fit the samples phase
-            # wraps by allowing A1 to be negative, which should be avoided
-            if b < 1:
+            # wraps by allowing A1 to be negative
+            print(f"(in handler) b_i is {b_i}")
+            log.debug(f"b_i is {b_i}")
+            if b_i < 1:
                 log.warning(f"QuadraticPhaseWrapCheckerError: b_i is {b_i}")
                 print(e)
                 response = input(
@@ -710,8 +733,8 @@ def quadratic_phase_wrap_checker(
     )
     # check +1, 0, and -1 wrap from min_wrap just to be safe
     # TODO: an improvement would be for APTB to continue down each path
-    # of +1, 0, and -1. However, knowing when to cut off a branch
-    # would have to implemented.
+    # of +1, 0, and -1. However, knowing when to prune a branch
+    # would have to implemented. I should view how Paulo does it.
     t_wrap_dict = {}
     f_wrap_dict = {}
     chisq_wrap = {}
@@ -723,19 +746,100 @@ def quadratic_phase_wrap_checker(
         # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
 
         chisq_wrap[f.resids.chi2_reduced] = min_wrap + wrap
+        f.reset_model()
         t_wrap_dict[min_wrap + wrap] = deepcopy(t)
         f_wrap_dict[min_wrap + wrap] = deepcopy(f)
 
     min_chisq = min(chisq_wrap.keys())
+    print(f"chisq_wrap = {chisq_wrap}")
+
+    # This likely means a new parameter needs to be added, in which case
+    # the phase wrapper should be ran AFTER the F-test call:
+    if min_chisq > 3:
+        t = t_copy
+        log.warning(
+            f"min_chisq = {min_chisq} > 3, attempting F-test, then rerunning quadratic_phase_wrap_checker"
+        )
+        m = do_Ftests(t, m, mask_with_closest, args)
+        f = WLSFitter(t, m)
+        f.fit_toas(maxiter=maxiter_while)
+        print(f"reduced chisq is {f.resids.chi2_reduced}")
+        m = f.model
+        phase_connector(
+            t,
+            m,
+            "np.unwrap",
+            cluster="all",
+            residuals=pint.residuals.Residuals(t, m).calc_phase_resids(),
+            mask_with_closest=mask_with_closest,
+            wraps=True,
+        )
+        save_state(
+            f,
+            m,
+            t,
+            t.get_mjds().value,
+            pulsar_name,
+            args=args,
+            folder=folder,
+            iteration=f"wrap_checker{iteration}",
+            save_plot=True,
+            mask_with_closest=mask_with_closest,
+        )
+        return quadratic_phase_wrap_checker(
+            m,
+            t,
+            mask_with_closest,
+            closest_cluster_mask,
+            b,
+            maxiter_while,
+            closest_cluster,
+            args,
+            folder,
+            wrap_checker_iteration + 1,
+            iteration,
+            pulsar_name,
+        )
 
     min_wrap_number_total = chisq_wrap[min_chisq]
 
+    print(
+        f"Attemping a phase wrap of {min_wrap_number_total} on closest cluster (cluster {closest_cluster}).\n"
+        + f"\tMin reduced chiqs = {min_chisq}"
+    )
+    if min_wrap_number_total != 0:
+
+        log.info("Phase wrap not equal to 0.")
+        print("#" * 100)
+        print(f"Phase wrap not equal to 0.")
+        print("#" * 100)
+        chisq_wrap = {}
+        for wrap in range(min_wrap_number_total - 10, min_wrap_number_total + 11):
+            # print(wrap)
+            t.table["delta_pulse_number"][closest_cluster_mask] = wrap
+            f.fit_toas(maxiter=maxiter_while)
+
+            # t_plus_minus["delta_pulse_number"] = 0
+            # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
+
+            chisq_wrap[wrap] = f.resids.chi2_reduced
+            f.reset_model()
+            t_wrap_dict[wrap] = deepcopy(t)
+            f_wrap_dict[wrap] = deepcopy(f)
+        print(chisq_wrap)
+        x = chisq_wrap.keys()
+        y = [chisq_wrap[key] for key in chisq_wrap.keys()]
+        fig, ax = plt.subplots()
+        ax.plot(x, y, "o")
+        ax.set_title(f"Jumping cluster {closest_cluster}")
+        ax.set_ylabel("reduced chisq")
+        ax.set_xlabel("wraps")
+        # plt.show()
+        fig.savefig(folder / Path(f"Jumping cluster {closest_cluster}.png"))
+        plt.close()
+
     t = t_wrap_dict[min_wrap_number_total]
     f = f_wrap_dict[min_wrap_number_total]
-
-    print(
-        f"Attemping a phase wrap of {min_wrap_number_total} on closest cluster (cluster {closest_cluster})."
-    )
 
     return f, t  # , chisq_samples, min_wrap_number_total
 
@@ -932,6 +1036,12 @@ def APT_argument_parse(parser, argv):
         type=int,
         default=1,
     )
+    parser.add_argument(
+        "--score_power",
+        help="The power that the score is raised to",
+        type=float,
+        default=0.3,
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -954,8 +1064,6 @@ def main(args, parser, mask_selector=None):
             description="PINT tool for agorithmically timing binary pulsars."
         )
         args, parser = APT_argument_parse(parser, argv=None)
-        print(args)
-        raise Exception("test stop")
 
     # import argparse
     # import sys
@@ -1022,15 +1130,22 @@ def main(args, parser, mask_selector=None):
     # (default to 2)
     maxiter_while = args.maxiter_while
 
-    mask_list, starting_cluster_list = starting_points(toas)
+    mask_list, starting_cluster_list = starting_points(
+        toas, args, score_function="original_different_power", power=args.score_power
+    )
+    # print(starting_cluster_list)
+    # raise Exception("stop")
     for mask_number, mask in enumerate(mask_list):
+        # adding a try statement here, indenting everything in this for loop one more time,
+        # would be a good place for it
+
         starting_cluster = starting_cluster_list[mask_number]
 
         # for multiprocessing, the mask_selector tells each iteration of main to skip
         # all but one of the masks
         if mask_selector is not None and mask_number != mask_selector:
             continue
-        if starting_cluster != 22:
+        if starting_cluster != 3:
             continue
         print(
             f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
@@ -1167,7 +1282,7 @@ def main(args, parser, mask_selector=None):
             closest_cluster, dist = get_closest_cluster(
                 deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
             )
-            print("closest cluster:", closest_cluster)
+            print("\nclosest cluster:", closest_cluster)
             if closest_cluster is None:
                 # end the program
                 break
@@ -1232,6 +1347,7 @@ def main(args, parser, mask_selector=None):
                 break
 
             # TODO add pontential phase wraps here
+            f = pint.fitter.WLSFitter(t, m)
             if args.check_phase_wraps:
                 f, t = quadratic_phase_wrap_checker(
                     m,
@@ -1241,12 +1357,14 @@ def main(args, parser, mask_selector=None):
                     b=5,
                     maxiter_while=maxiter_while,
                     closest_cluster=closest_cluster,
+                    args=args,
+                    folder=alg_saves_mask_Path,
+                    iteration=iteration,
+                    pulsar_name=pulsar_name,
                 )
-            else:
-                f = pint.fitter.WLSFitter(t, m)
-                f.fit_toas(maxiter=maxiter_while)
-                t.table["delta_pulse_number"] = 0
-                t.compute_pulse_numbers(f.model)
+            f.fit_toas(maxiter=maxiter_while)
+            t.table["delta_pulse_number"] = 0
+            t.compute_pulse_numbers(f.model)
             m = f.model
 
             # use random models, or design matrix method to determine if next
@@ -1265,8 +1383,9 @@ def main(args, parser, mask_selector=None):
             m = do_Ftests(t, m, mask_with_closest, args)
 
             # fit
-            f = pint.fitter.WLSFitter(t, m)
+            f = WLSFitter(t, m)
             f.fit_toas(maxiter=maxiter_while)
+            print(f"reduced chisq at botttom of while loop is {f.resids.chi2_reduced}")
 
             m = f.model
 
@@ -1285,8 +1404,9 @@ def main(args, parser, mask_selector=None):
                 skip_mask = True
                 break
 
-            # repeat
+            # repeat while loop
 
+        # if skip_mask was set to true in the while loop, then move onto the next mask
         if skip_mask:
             continue
 
@@ -1434,15 +1554,14 @@ if __name__ == "__main__":
             # settting args and parser to None is needed to prevent the multiprocessing
             # package from trying to pickle them, giving an error.
             # doing it this way also prevents the need for globals
-            print(
-                p.starmap(
-                    main,
-                    [
-                        (None, None, mask_selector)
-                        for mask_selector in range(args.max_starts)
-                    ],
-                )
+            p.starmap(
+                main,
+                [
+                    (None, None, mask_selector)
+                    for mask_selector in range(args.max_starts)
+                ],
             )
+
     else:
         main(args, parser)
     end_time = time.monotonic()
