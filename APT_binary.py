@@ -23,7 +23,6 @@ from pathlib import Path
 import socket
 from APT import get_closest_cluster, solution_compare, bad_points
 import APT_binary_extension
-import argparse
 from loguru import logger as log
 
 
@@ -31,7 +30,9 @@ class StartingJumpError(Exception):
     pass
 
 
-def starting_points(toas, args=None, score_function="original", power=0.3, **kwargs):
+def starting_points(
+    toas, args=None, score_function="original", start_type=None, **kwargs
+):
     """
     Choose which cluster to NOT jump, i.e. where to start
 
@@ -45,6 +46,9 @@ def starting_points(toas, args=None, score_function="original", power=0.3, **kwa
     -------
     tuple : (mask_list[:max_starts], starting_cluster_list[:max_starts])
     """
+    if start_type != None:
+        return
+
     t = deepcopy(toas)
     if "clusters" not in t.table.columns:
         t.table["clusters"] = t.get_clusters()
@@ -55,7 +59,7 @@ def starting_points(toas, args=None, score_function="original", power=0.3, **kwa
         score_list = (1.0 / dts).sum(axis=1)
     # different powers give different starting masks
     elif score_function == "original_different_power":
-        score_list = (1.0 / dts**power).sum(axis=1)
+        score_list = (1.0 / dts**args.power).sum(axis=1)
     else:
         raise TypeError(f"score function '{score_function}' not understood")
 
@@ -1056,17 +1060,410 @@ def APT_argument_parse(parser, argv):
     return args, parser
 
 
-def main(args, parser, mask_selector=None):
+def main_for_loop(
+    parfile,
+    timfile,
+    mask_number,
+    mask,
+    starting_cluster,
+    alg_saves_Path,
+    toas,
+    pulsar_name,
+    mjds_total,
+    maxiter_while,
+):
 
-    if args is None:
-        # need to run this again if not previously specified
-        parser = argparse.ArgumentParser(
-            description="PINT tool for agorithmically timing binary pulsars."
+    # starting_cluster = starting_cluster_list[mask_number]
+
+    # for multiprocessing, the mask_selector tells each iteration of main to skip
+    # all but one of the masks
+    # if mask_selector is not None and mask_number != mask_selector:
+    #     return "continue"
+    # if starting_cluster != 3:
+    #     return "continue"
+    print(
+        f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
+    )
+
+    mask_Path = Path(f"mask{mask_number}_cluster{starting_cluster}")
+    alg_saves_mask_Path = alg_saves_Path / mask_Path
+    if not alg_saves_mask_Path.exists():
+        alg_saves_mask_Path.mkdir()
+
+    m = mb.get_model(parfile)
+    m, t = JUMP_adder_begginning_cluster(
+        mask,
+        toas,
+        m,
+        output_timfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.tim"),
+        output_parfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.par"),
+    )
+    t.compute_pulse_numbers(m)
+    args.binary_model = m.BINARY.value
+    args = set_binary_pars_lim(args)
+
+    # start fitting for main binary parameters immediately
+    if args.binary_model.lower() == "ell1":
+        for param in ["PB", "TASC", "A1"]:
+            getattr(m, param).frozen = False
+
+    # a copy, with the flags included
+    base_toas = deepcopy(t)
+
+    # the following before the while loop is the very first fit with only one cluster not JUMPed
+
+    # want to phase connect toas within a cluster first:
+    residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
+
+    phase_connector(
+        t,
+        m,
+        "np.unwrap",
+        cluster="all",
+        mjds_total=mjds_total,
+        residuals=residuals_start,
+        wraps=True,
+    )
+
+    if not save_state(
+        m=m,
+        t=t,
+        mjds=mjds_total,
+        pulsar_name=pulsar_name,
+        f=None,
+        args=args,
+        folder=alg_saves_mask_Path,
+        iteration="start_right_after_phase",
+        save_plot=True,
+    ):
+        # try next mask
+        return "continue"
+
+    print("Fitting...")
+    f = WLSFitter(t, m)
+    print("BEFORE:", f.get_fitparams())
+    # changing maxiter here may have some effects
+    print(f.fit_toas(maxiter=2))
+
+    print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
+    print("RMS in phase is", f.resids.phase_resids.std())
+    print("RMS in time is", f.resids.time_resids.std().to(u.us))
+    print("\n Best model is:")
+    print(f.model.as_parfile())
+
+    # new model so need to update table
+    t.table["delta_pulse_number"] = 0
+    t.compute_pulse_numbers(f.model)
+
+    # update the model
+    m = f.model
+
+    if not save_state(
+        f,
+        m,
+        t,
+        mjds_total,
+        pulsar_name,
+        args=args,
+        folder=alg_saves_mask_Path,
+        iteration="start",
+        save_plot=True,
+    ):
+        return "continue"
+
+    # something is certaintly wrong if the reduced chisq is greater that 3 at this stage,
+    # so APTB should not waste time attempting to coerce a solution
+    chisq_start = pint.residuals.Residuals(t, m).chi2_reduced
+    log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
+    if chisq_start > 3:
+        log.warning(
+            f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
         )
-        args, parser = APT_argument_parse(parser, argv=None)
+        plt.plot(mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids(), "o")
+        plt.show()
+        response = input(
+            f"The reduced chisq is {pint.residuals.Residuals(t, m).chi2_reduced}.\n"
+            + "This is adnormally high, should APTB continue anyway? (y/n)"
+        )
+        if response.lower() != "y":
+            log.warning("StartingJumpError")
+            raise StartingJumpError("Reduced chisq adnormally high, quitting program.")
 
-    # import argparse
-    # import sys
+    # mask_with_closest will be everything not JUMPed, as well as the next clusters
+    # to be de JUMPed
+
+    # the following list comprehension allows a JUMP number to be found
+    # by indexing this list with its cluster number. The wallrus operator
+    # is used for brevity.
+    j = 0
+    cluster_to_JUMPs = [
+        f"JUMP{(j:=j+1)}" if i != starting_cluster else ""
+        for i in range(t.table["clusters"][-1] + 1)
+    ]
+    skip_mask = False
+    bad_mjds = []
+    mask_with_closest = deepcopy(mask)
+    iteration = 0
+    while True:
+        # the main loop of the algorithm
+        iteration += 1
+
+        # find the closest cluster
+        closest_cluster, dist = get_closest_cluster(
+            deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
+        )
+        print("\nclosest cluster:", closest_cluster)
+        if closest_cluster is None:
+            # end the program
+            break
+
+        closest_cluster_mask = t.table["clusters"] == closest_cluster
+
+        # TODO add polyfit here
+        # random models can cover this instead
+        # do slopes match from next few clusters, or does a quadratic fit
+
+        mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
+
+        closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
+        getattr(m, closest_cluster_JUMP).frozen = True
+        getattr(m, closest_cluster_JUMP).value = 0
+        getattr(m, closest_cluster_JUMP).uncertainty = 0
+        # seeing if removing the value of every JUMP helps
+        # for JUMP in cluster_to_JUMPs:
+        #     if JUMP and not getattr(m, JUMP).frozen:
+        #         getattr(m, JUMP).value = 0
+        #         getattr(m, JUMP).uncertainty = 0
+
+        t.table["delta_pulse_number"] = 0
+        t.compute_pulse_numbers(m)
+        residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
+
+        # save_state(
+        #     f,
+        #     m,
+        #     t,
+        #     mjds_total,
+        #     pulsar_name,
+        #     args=args,
+        #     folder=alg_saves_mask_Path,
+        #     iteration=f"prepre{iteration}",
+        #     save_plot=True,
+        # )
+
+        phase_connector(
+            t,
+            m,
+            "np.unwrap",
+            cluster="all",
+            mjds_total=mjds_total,
+            residuals=residuals,
+            mask_with_closest=mask_with_closest,
+            wraps=True,
+        )
+        if not save_state(
+            f,
+            m,
+            t,
+            mjds_total,
+            pulsar_name,
+            args=args,
+            folder=alg_saves_mask_Path,
+            iteration=f"prefit{iteration}",
+            save_plot=True,
+            mask_with_closest=mask_with_closest,
+        ):
+            skip_mask = True
+            break
+
+        # TODO add pontential phase wraps here
+        f = pint.fitter.WLSFitter(t, m)
+        if args.check_phase_wraps:
+            f, t = quadratic_phase_wrap_checker(
+                m,
+                t,
+                mask_with_closest,
+                closest_cluster_mask,
+                b=5,
+                maxiter_while=maxiter_while,
+                closest_cluster=closest_cluster,
+                args=args,
+                folder=alg_saves_mask_Path,
+                iteration=iteration,
+                pulsar_name=pulsar_name,
+            )
+        f.fit_toas(maxiter=maxiter_while)
+        t.table["delta_pulse_number"] = 0
+        t.compute_pulse_numbers(f.model)
+        m = f.model
+
+        # use random models, or design matrix method to determine if next
+        # cluster is within the error space. If the next cluster is not
+        # within the error space, check for phase wraps.
+
+        # TODO use random models or design matrix here
+
+        # # TODO add pontential phase wraps here
+        # m, t = quadratic_phase_wrap_checker(m, t, mask_with_closest, closest_cluster_mask)
+
+        # TODO add check_bad_points here-ish
+
+        # use the F-test to determine if another parameter should be fit
+
+        m = do_Ftests(t, m, mask_with_closest, args)
+
+        # fit
+        f = WLSFitter(t, m)
+        f.fit_toas(maxiter=maxiter_while)
+        print(f"reduced chisq at botttom of while loop is {f.resids.chi2_reduced}")
+
+        m = f.model
+
+        if not save_state(
+            f,
+            m,
+            t,
+            mjds_total,
+            pulsar_name,
+            args=args,
+            folder=alg_saves_mask_Path,
+            iteration=iteration,
+            save_plot=True,
+            mask_with_closest=mask_with_closest,
+        ):
+            skip_mask = True
+            break
+
+        # repeat while loop
+
+    # if skip_mask was set to true in the while loop, then move onto the next mask
+    if skip_mask:
+        return "continue"
+
+    # try fitting with any remaining unfit parameters included and see if the fit is better for it
+    m_plus = deepcopy(m)
+    getattr(m_plus, "RAJ").frozen = False
+    getattr(m_plus, "DECJ").frozen = False
+    getattr(m_plus, "F1").frozen = False
+
+    if args.binary_model.lower() == "ell1":
+        getattr(m_plus, "EPS1").frozen = False
+        getattr(m_plus, "EPS2").frozen = False
+
+    f_plus = pint.fitter.WLSFitter(t, m_plus)
+    f_plus.fit_toas(maxiter=maxiter_while)
+
+    # residuals
+    r = pint.residuals.Residuals(t, f.model)
+    r_plus = pint.residuals.Residuals(t, f_plus.model)
+    if r_plus.chi2 <= r.chi2:
+        f = deepcopy(f_plus)
+
+    # save final model as .fin file
+    print("Final Model:\n", f.model.as_parfile())
+
+    # save as .fin
+    fin_name = Path(f.model.PSR.value + ".fin")
+    with open(alg_saves_mask_Path / fin_name, "w") as finfile:
+        finfile.write(f.model.as_parfile())
+
+    # plot final residuals if plot_final True
+    xt = t.get_mjds()
+    plt.clf()
+    plt.close()
+    fig, ax = plt.subplots()
+    twinx = ax.twinx()
+    ax.errorbar(
+        xt.value,
+        pint.residuals.Residuals(t, f.model).time_resids.to(u.us).value,
+        t.get_errors().to(u.us).value,
+        fmt=".b",
+        label="post-fit (time)",
+    )
+    twinx.errorbar(
+        xt.value,
+        pint.residuals.Residuals(t, f.model).phase_resids,
+        t.get_errors().to(u.us).value * float(f.model.F0.value) / 1e6,
+        fmt=".b",
+        label="post-fit (phase)",
+    )
+    ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
+    ax.set_xlabel("MJD")
+    ax.set_ylabel("Residual (us)")
+    twinx.set_ylabel("Residual (phase)", labelpad=15)
+    span = (0.5 / float(f.model.F0.value)) * (10**6)
+    plt.grid()
+
+    time_end_main = time.monotonic()
+    print(
+        f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
+    )
+    if args.plot_final:
+        plt.show()
+
+    fig.savefig(
+        alg_saves_mask_Path / Path(f"{pulsar_name}_final.png"), bbox_inches="tight"
+    )
+    plt.close()
+
+    # if success, stop trying and end programl
+    if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
+        print(
+            "SUCCESS! A solution was found with reduced chi2 of",
+            pint.residuals.Residuals(t, f.model).chi2_reduced,
+            "after",
+            iteration,
+            "iterations",
+        )
+        if args.parfile_compare:
+            while True:
+                try:
+                    identical_solution = solution_compare(
+                        args.parfile_compare,
+                        alg_saves_mask_Path / Path(f"{f.model.PSR.value}.fin"),
+                        timfile,
+                    )
+                    # if succesful, break the loop
+                    break
+
+                # if an error occurs, attempt again with the correct solution path
+                except FileNotFoundError as e:
+                    args.parfile_compare = input(
+                        "Solution file not found. Input the full path here or enter 'q' to quit: "
+                    )
+                    if args.parfile_compare == "q":
+                        identical_solution = "Unknown"
+                        break
+                    # else, try the loop again
+
+            if identical_solution != "Unknown":
+                print(
+                    f"\n\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n\n"
+                )
+            else:
+                print(
+                    f"\nSolution compare failed because the solution file could not be found."
+                )
+
+        print(f"The input parameters for this fit were:\n {args}")
+        print(
+            f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
+        )
+        starting_TOAs = t[mask]
+        print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
+        print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
+        print(f"TOAs Removed (MJD): {bad_mjds}")
+        return "break"
+
+
+def main():
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="PINT tool for agorithmically timing binary pulsars."
+    )
+    args, parser = APT_argument_parse(parser, argv=None)
 
     # args, parser, mask_selector = main_args
     flag_name = "jump_tim"
@@ -1075,11 +1472,6 @@ def main(args, parser, mask_selector=None):
 
     """required = parfile, timfile"""
     """optional = starting points, param ranges"""
-    # parser = argparse.ArgumentParser(
-    #     description="PINT tool for agorithmically timing binary pulsars."
-    # )
-
-    # args, parser = APT_argument_parse(parser, argv=None)
 
     # if given starting points from command line, check if ints (group numbers) or floats (mjd values)
     start_type = None
@@ -1131,399 +1523,73 @@ def main(args, parser, mask_selector=None):
     maxiter_while = args.maxiter_while
 
     mask_list, starting_cluster_list = starting_points(
-        toas, args, score_function="original_different_power", power=args.score_power
+        toas, args, score_function="original_different_power", start_type=start_type
     )
     # print(starting_cluster_list)
     # raise Exception("stop")
-    for mask_number, mask in enumerate(mask_list):
-        # adding a try statement here, indenting everything in this for loop one more time,
-        # would be a good place for it
+    # for mask_number, mask in enumerate(mask_list):
+    if args.multiprocessing:
+        import multiprocessing
 
-        starting_cluster = starting_cluster_list[mask_number]
-
-        # for multiprocessing, the mask_selector tells each iteration of main to skip
-        # all but one of the masks
-        if mask_selector is not None and mask_number != mask_selector:
-            continue
-        if starting_cluster != 3:
-            continue
-        print(
-            f"\nMask number {mask_number} has started. Starting cluster: {starting_cluster}\n"
+        log.warning(
+            "Multiprocessing in use. Note: using multiprocessing can make\n"
+            + "it difficult to diagnose errors for a particular starting cluster."
         )
-
-        mask_Path = Path(f"mask{mask_number}_cluster{starting_cluster}")
-        alg_saves_mask_Path = alg_saves_Path / mask_Path
-        if not alg_saves_mask_Path.exists():
-            alg_saves_mask_Path.mkdir()
-
-        m = mb.get_model(parfile)
-        m, t = JUMP_adder_begginning_cluster(
-            mask,
-            toas,
-            m,
-            output_timfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.tim"),
-            output_parfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.par"),
-        )
-        t.compute_pulse_numbers(m)
-        args.binary_model = m.BINARY.value
-        args = set_binary_pars_lim(args)
-
-        # start fitting for main binary parameters immediately
-        if args.binary_model.lower() == "ell1":
-            for param in ["PB", "TASC", "A1"]:
-                getattr(m, param).frozen = False
-
-        # a copy, with the flags included
-        base_toas = deepcopy(t)
-
-        # the following before the while loop is the very first fit with only one cluster not JUMPed
-
-        # want to phase connect toas within a cluster first:
-        residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
-
-        phase_connector(
-            t,
-            m,
-            "np.unwrap",
-            cluster="all",
-            mjds_total=mjds_total,
-            residuals=residuals_start,
-            wraps=True,
-        )
-
-        if not save_state(
-            m=m,
-            t=t,
-            mjds=mjds_total,
-            pulsar_name=pulsar_name,
-            f=None,
-            args=args,
-            folder=alg_saves_mask_Path,
-            iteration="start_right_after_phase",
-            save_plot=True,
-        ):
-            # try next mask
-            continue
-
-        print("Fitting...")
-        f = WLSFitter(t, m)
-        print("BEFORE:", f.get_fitparams())
-        # changing maxiter here may have some effects
-        print(f.fit_toas(maxiter=2))
-
-        print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
-        print("RMS in phase is", f.resids.phase_resids.std())
-        print("RMS in time is", f.resids.time_resids.std().to(u.us))
-        print("\n Best model is:")
-        print(f.model.as_parfile())
-
-        # new model so need to update table
-        t.table["delta_pulse_number"] = 0
-        t.compute_pulse_numbers(f.model)
-
-        # update the model
-        m = f.model
-
-        if not save_state(
-            f,
-            m,
-            t,
-            mjds_total,
-            pulsar_name,
-            args=args,
-            folder=alg_saves_mask_Path,
-            iteration="start",
-            save_plot=True,
-        ):
-            continue
-
-        # something is certaintly wrong if the reduced chisq is greater that 3 at this stage,
-        # so APTB should not waste time attempting to coerce a solution
-        chisq_start = pint.residuals.Residuals(t, m).chi2_reduced
-        log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
-        if chisq_start > 3:
-            log.warning(
-                f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
+        p = multiprocessing.Pool
+        results = []
+        for mask_number, mask in enumerate(mask_list):
+            starting_cluster = starting_cluster_list[mask_number]
+            results.append(
+                p.apply_async(
+                    main,
+                    (
+                        parfile,
+                        timfile,
+                        mask_number,
+                        mask,
+                        starting_cluster,
+                        alg_saves_Path,
+                        toas,
+                        pulsar_name,
+                        mjds_total,
+                        maxiter_while,
+                    ),
+                )
             )
-            plt.plot(
-                mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids(), "o"
-            )
-            plt.show()
-            response = input(
-                f"The reduced chisq is {pint.residuals.Residuals(t, m).chi2_reduced}.\n"
-                + "This is adnormally high, should APTB continue anyway? (y/n)"
-            )
-            if response.lower() != "y":
-                log.warning("StartingJumpError")
-                raise StartingJumpError(
-                    "Reduced chisq adnormally high, quitting program."
+            # these two lines make the program wait until each process has concluded
+            p.close()
+            p.join()
+            try:
+                pass
+            except Exception as e:
+                pass
+
+    else:
+        for mask_number, mask in enumerate(mask_list):
+            starting_cluster = starting_cluster_list[mask_number]
+            try:
+                main_for_loop(
+                    parfile,
+                    timfile,
+                    mask_number,
+                    mask,
+                    starting_cluster,
+                    alg_saves_Path,
+                    toas,
+                    pulsar_name,
+                    mjds_total,
+                    maxiter_while,
+                )
+            # usually handling ANY exception is frowned upon but if a mask
+            # fails, it could be for a number of reasons which do not
+            # proclude the success of other masks
+            except Exception as e:
+                print(f"\n{e}\n")
+                print(
+                    f"mask_number {mask_number} (cluster {starting_cluster}) failed,"
+                    + "moving onto the next cluster."
                 )
 
-        # mask_with_closest will be everything not JUMPed, as well as the next clusters
-        # to be de JUMPed
-
-        # the following list comprehension allows a JUMP number to be found
-        # by indexing this list with its cluster number. The wallrus operator
-        # is used for brevity.
-        j = 0
-        cluster_to_JUMPs = [
-            f"JUMP{(j:=j+1)}" if i != starting_cluster else ""
-            for i in range(t.table["clusters"][-1] + 1)
-        ]
-        skip_mask = False
-        bad_mjds = []
-        mask_with_closest = deepcopy(mask)
-        iteration = 0
-        while True:
-            # the main loop of the algorithm
-            iteration += 1
-
-            # find the closest cluster
-            closest_cluster, dist = get_closest_cluster(
-                deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
-            )
-            print("\nclosest cluster:", closest_cluster)
-            if closest_cluster is None:
-                # end the program
-                break
-
-            closest_cluster_mask = t.table["clusters"] == closest_cluster
-
-            # TODO add polyfit here
-            # random models can cover this instead
-            # do slopes match from next few clusters, or does a quadratic fit
-
-            mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
-
-            closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
-            getattr(m, closest_cluster_JUMP).frozen = True
-            getattr(m, closest_cluster_JUMP).value = 0
-            getattr(m, closest_cluster_JUMP).uncertainty = 0
-            # seeing if removing the value of every JUMP helps
-            # for JUMP in cluster_to_JUMPs:
-            #     if JUMP and not getattr(m, JUMP).frozen:
-            #         getattr(m, JUMP).value = 0
-            #         getattr(m, JUMP).uncertainty = 0
-
-            t.table["delta_pulse_number"] = 0
-            t.compute_pulse_numbers(m)
-            residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
-
-            # save_state(
-            #     f,
-            #     m,
-            #     t,
-            #     mjds_total,
-            #     pulsar_name,
-            #     args=args,
-            #     folder=alg_saves_mask_Path,
-            #     iteration=f"prepre{iteration}",
-            #     save_plot=True,
-            # )
-
-            phase_connector(
-                t,
-                m,
-                "np.unwrap",
-                cluster="all",
-                mjds_total=mjds_total,
-                residuals=residuals,
-                mask_with_closest=mask_with_closest,
-                wraps=True,
-            )
-            if not save_state(
-                f,
-                m,
-                t,
-                mjds_total,
-                pulsar_name,
-                args=args,
-                folder=alg_saves_mask_Path,
-                iteration=f"prefit{iteration}",
-                save_plot=True,
-                mask_with_closest=mask_with_closest,
-            ):
-                skip_mask = True
-                break
-
-            # TODO add pontential phase wraps here
-            f = pint.fitter.WLSFitter(t, m)
-            if args.check_phase_wraps:
-                f, t = quadratic_phase_wrap_checker(
-                    m,
-                    t,
-                    mask_with_closest,
-                    closest_cluster_mask,
-                    b=5,
-                    maxiter_while=maxiter_while,
-                    closest_cluster=closest_cluster,
-                    args=args,
-                    folder=alg_saves_mask_Path,
-                    iteration=iteration,
-                    pulsar_name=pulsar_name,
-                )
-            f.fit_toas(maxiter=maxiter_while)
-            t.table["delta_pulse_number"] = 0
-            t.compute_pulse_numbers(f.model)
-            m = f.model
-
-            # use random models, or design matrix method to determine if next
-            # cluster is within the error space. If the next cluster is not
-            # within the error space, check for phase wraps.
-
-            # TODO use random models or design matrix here
-
-            # # TODO add pontential phase wraps here
-            # m, t = quadratic_phase_wrap_checker(m, t, mask_with_closest, closest_cluster_mask)
-
-            # TODO add check_bad_points here-ish
-
-            # use the F-test to determine if another parameter should be fit
-
-            m = do_Ftests(t, m, mask_with_closest, args)
-
-            # fit
-            f = WLSFitter(t, m)
-            f.fit_toas(maxiter=maxiter_while)
-            print(f"reduced chisq at botttom of while loop is {f.resids.chi2_reduced}")
-
-            m = f.model
-
-            if not save_state(
-                f,
-                m,
-                t,
-                mjds_total,
-                pulsar_name,
-                args=args,
-                folder=alg_saves_mask_Path,
-                iteration=iteration,
-                save_plot=True,
-                mask_with_closest=mask_with_closest,
-            ):
-                skip_mask = True
-                break
-
-            # repeat while loop
-
-        # if skip_mask was set to true in the while loop, then move onto the next mask
-        if skip_mask:
-            continue
-
-        # try fitting with any remaining unfit parameters included and see if the fit is better for it
-        m_plus = deepcopy(m)
-        getattr(m_plus, "RAJ").frozen = False
-        getattr(m_plus, "DECJ").frozen = False
-        getattr(m_plus, "F1").frozen = False
-
-        if args.binary_model.lower() == "ell1":
-            getattr(m_plus, "EPS1").frozen = False
-            getattr(m_plus, "EPS2").frozen = False
-
-        f_plus = pint.fitter.WLSFitter(t, m_plus)
-        f_plus.fit_toas(maxiter=maxiter_while)
-
-        # residuals
-        r = pint.residuals.Residuals(t, f.model)
-        r_plus = pint.residuals.Residuals(t, f_plus.model)
-        if r_plus.chi2 <= r.chi2:
-            f = deepcopy(f_plus)
-
-        # save final model as .fin file
-        print("Final Model:\n", f.model.as_parfile())
-
-        # save as .fin
-        fin_name = Path(f.model.PSR.value + ".fin")
-        with open(alg_saves_mask_Path / fin_name, "w") as finfile:
-            finfile.write(f.model.as_parfile())
-
-        # plot final residuals if plot_final True
-        xt = t.get_mjds()
-        plt.clf()
-        plt.close()
-        fig, ax = plt.subplots()
-        twinx = ax.twinx()
-        ax.errorbar(
-            xt.value,
-            pint.residuals.Residuals(t, f.model).time_resids.to(u.us).value,
-            t.get_errors().to(u.us).value,
-            fmt=".b",
-            label="post-fit (time)",
-        )
-        twinx.errorbar(
-            xt.value,
-            pint.residuals.Residuals(t, f.model).phase_resids,
-            t.get_errors().to(u.us).value * float(f.model.F0.value) / 1e6,
-            fmt=".b",
-            label="post-fit (phase)",
-        )
-        ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
-        ax.set_xlabel("MJD")
-        ax.set_ylabel("Residual (us)")
-        twinx.set_ylabel("Residual (phase)", labelpad=15)
-        span = (0.5 / float(f.model.F0.value)) * (10**6)
-        plt.grid()
-
-        time_end_main = time.monotonic()
-        print(
-            f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
-        )
-        if args.plot_final:
-            plt.show()
-
-        fig.savefig(
-            alg_saves_mask_Path / Path(f"{pulsar_name}_final.png"), bbox_inches="tight"
-        )
-        plt.close()
-
-        # if success, stop trying and end programl
-        if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
-            print(
-                "SUCCESS! A solution was found with reduced chi2 of",
-                pint.residuals.Residuals(t, f.model).chi2_reduced,
-                "after",
-                iteration,
-                "iterations",
-            )
-            if args.parfile_compare:
-                while True:
-                    try:
-                        identical_solution = solution_compare(
-                            args.parfile_compare,
-                            alg_saves_mask_Path / Path(f"{f.model.PSR.value}.fin"),
-                            timfile,
-                        )
-                        # if succesful, break the loop
-                        break
-
-                    # if an error occurs, attempt again with the correct solution path
-                    except FileNotFoundError as e:
-                        args.parfile_compare = input(
-                            "Solution file not found. Input the full path here or enter 'q' to quit: "
-                        )
-                        if args.parfile_compare == "q":
-                            identical_solution = "Unknown"
-                            break
-                        # else, try the loop again
-
-                if identical_solution != "Unknown":
-                    print(
-                        f"\n\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n\n"
-                    )
-                else:
-                    print(
-                        f"\nSolution compare failed because the solution file could not be found."
-                    )
-
-            print(f"The input parameters for this fit were:\n {args}")
-            print(
-                f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
-            )
-            starting_TOAs = t[mask]
-            print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
-            print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
-            print(f"TOAs Removed (MJD): {bad_mjds}")
-            break
     return "Completed"
 
 
@@ -1531,39 +1597,10 @@ if __name__ == "__main__":
     import sys
 
     pint.logging.setup(level="WARNING")
-    global args, parser
+    # global args, parser
 
     start_time = time.monotonic()
-    parser = argparse.ArgumentParser(
-        description="PINT tool for agorithmically timing binary pulsars."
-    )
-    args, parser = APT_argument_parse(parser, argv=None)
-
-    if args.multiprocessing:
-        from multiprocessing import Pool
-
-        # from pathos.multiprocessing import ProcessingPool as Pool
-        # from multiprocessing.pool import ThreadPool as Pool
-
-        print("\n\nMultiprocessing in use!\n")
-        log.warning(
-            "Using muliprocessing while running APTB on several pulsars will not notably increase\n"
-            + "the efficiency due to multiprocessing using multiple cores anyway."
-        )
-        with Pool(args.max_starts) as p:
-            # settting args and parser to None is needed to prevent the multiprocessing
-            # package from trying to pickle them, giving an error.
-            # doing it this way also prevents the need for globals
-            p.starmap(
-                main,
-                [
-                    (None, None, mask_selector)
-                    for mask_selector in range(args.max_starts)
-                ],
-            )
-
-    else:
-        main(args, parser)
+    main()
     end_time = time.monotonic()
     print(
         f"Final Runtime (including plots): {end_time - start_time} seconds, or {(end_time - start_time) / 60.0} minutes"
