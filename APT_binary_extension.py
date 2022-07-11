@@ -38,12 +38,13 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
     """
 
     if args.binary_model.lower() == "ell1":
+        # want to add eps1 and eps2 at the same time
         if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
-            Ftest_F = APT_binary.Ftest_param(m, f, "EPS1")
-            Ftests[Ftest_F] = "EPS1"
-        if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
-            Ftest_F = APT_binary.Ftest_param(m, f, "EPS2")
-            Ftests[Ftest_F] = "EPS2"
+            Ftest_F = APT_binary.Ftest_param(m, f, "EPS1&2", args)
+            Ftests[Ftest_F] = "EPS1&2"
+        # if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
+        #     Ftest_F = APT_binary.Ftest_param(m, f, "EPS2", args)
+        #     Ftests[Ftest_F] = "EPS2"
 
     elif args.binary_model.lower() == "other models":
         pass

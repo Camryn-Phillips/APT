@@ -349,6 +349,9 @@ def save_state(
     bool
         whether or not a managed error occured (True if no issues). Nonmanaged errors will completely hault the program
     """
+    if not args.save_state:
+        return True
+
     m_copy = deepcopy(m)
     t = deepcopy(t)
 
@@ -481,7 +484,7 @@ def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
     return fig, ax
 
 
-def Ftest_param(r_model, fitter, param_name):
+def Ftest_param(r_model, fitter, param_name, args):
     """
     do an F-test comparing a model with and without a particular parameter added
 
@@ -503,7 +506,11 @@ def Ftest_param(r_model, fitter, param_name):
     toas = deepcopy(fitter.toas)
 
     # set given parameter to unfrozen
-    getattr(m_plus_p, param_name).frozen = False
+    if param_name == "EPS1&2":
+        getattr(m_plus_p, "EPS1").frozen = False
+        getattr(m_plus_p, "EPS2").frozen = False
+    else:
+        getattr(m_plus_p, param_name).frozen = False
 
     # make a fitter object with the chosen parameter unfrozen and fit the toas using the model with the extra parameter
     f_plus_p = pint.fitter.WLSFitter(toas, m_plus_p)
@@ -578,15 +585,15 @@ def do_Ftests(t, m, mask_with_closest, args):
 
     # if span is longer than minimum parameter span and parameter hasn't been added yet, do Ftest to see if parameter should be added
     if "RAJ" not in f_params and span > args.RAJ_lim * u.d:
-        Ftest_R = Ftest_param(m, f, "RAJ")
+        Ftest_R = Ftest_param(m, f, "RAJ", args)
         Ftests[Ftest_R] = "RAJ"
 
     if "DECJ" not in f_params and span > args.DECJ_lim * u.d:
-        Ftest_D = Ftest_param(m, f, "DECJ")
+        Ftest_D = Ftest_param(m, f, "DECJ", args)
         Ftests[Ftest_D] = "DECJ"
 
     if "F1" not in f_params and span > args.F1_lim * u.d:
-        Ftest_F = Ftest_param(m, f, "F1")
+        Ftest_F = Ftest_param(m, f, "F1", args)
         Ftests[Ftest_F] = "F1"
 
     m, t, f, f_params, span, Ftests, args = APT_binary_extension.do_Ftests_binary(
@@ -613,7 +620,11 @@ def do_Ftests(t, m, mask_with_closest, args):
     elif min(Ftests_keys) < args.Ftest_lim:
         add_param = Ftests[min(Ftests_keys)]
         print("adding param ", add_param, " with Ftest ", min(Ftests_keys))
-        getattr(m, add_param).frozen = False
+        if add_param == "EPS1&2":
+            getattr(m, "EPS1").frozen = False
+            getattr(m, "EPS2").frozen = False
+        else:
+            getattr(m, add_param).frozen = False
 
     return m
 
@@ -650,10 +661,10 @@ def set_F1_lim(args, parfile):
         args.F1_lim = np.sqrt(0.35 * 2 / F1) / 86400.0
 
 
-def set_binary_pars_lim(args):
+def set_binary_pars_lim(m, args):
     if args.binary_model.lower() == "ell1":
-        args.EPS1_lim = 75
-        args.EPS2_lim = 75
+        args.EPS1_lim = m.PB.value * 10
+        args.EPS2_lim = m.PB.value * 10
 
     return args
 
@@ -697,7 +708,7 @@ def quadratic_phase_wrap_checker(
     """
     # if quadratic_phase_wrap_checker gets called a second time through recursion, throw an error
     if wrap_checker_iteration >= 3:
-        raise RecursionError("maximum recursion depth exceeded (3)")
+        raise RecursionError("In quadratic_phase_wrap_checker: maximum recursion depth exceeded (3)")
 
     # run from highest to lowest b until no error is raised.
     # ideally, only b_i = b is run
@@ -792,7 +803,7 @@ def quadratic_phase_wrap_checker(
             pulsar_name,
             args=args,
             folder=folder,
-            iteration=f"wrap_checker{iteration}",
+            iteration=f"{iteration}_wrap_checker{wrap_checker_iteration}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
         )
@@ -1064,6 +1075,13 @@ def APT_argument_parse(parser, argv):
         type=str,
         default="INFO",
     )
+    parser.add_argument(
+        "--save_state",
+        help="Whether to take the time to save state (t/f). Setting to false could lower runtime, however making\n"+"diagnosing issues very diffuclt.",
+        type=str,
+        default="t",
+    )
+
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -1075,6 +1093,7 @@ def APT_argument_parse(parser, argv):
     args.multiprocessing = args.multiprocessing.lower()[0] == "t"
     args.check_phase_wraps = args.check_phase_wraps.lower()[0] == "t"
     args.all_solutions = args.all_solutions.lower()[0] == "t"
+    args.save_state = args.save_state.lower()[0] == "t"
 
     return args, parser
 
@@ -1122,7 +1141,7 @@ def main_for_loop(
     )
     t.compute_pulse_numbers(m)
     args.binary_model = m.BINARY.value
-    args = set_binary_pars_lim(args)
+    args = set_binary_pars_lim(m, args)
 
     # start fitting for main binary parameters immediately
     if args.binary_model.lower() == "ell1":
@@ -1132,84 +1151,91 @@ def main_for_loop(
     # a copy, with the flags included
     base_toas = deepcopy(t)
 
-    # the following before the while loop is the very first fit with only one cluster not JUMPed
+    # the following before the bigger while loop is the very first fit with only one cluster not JUMPed.
+    # ideally, the following only runs once
 
-    # want to phase connect toas within a cluster first:
-    residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
+    start_iter = 0
+    while True:
+        start_iter += 1
+        if start_iter > 3:
+            log.error("StartingJumpError: Reduced chisq adnormally high, quitting program.")
+            raise RecursionError("In start:maximum recursion depth exceeded (3)")
+        residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
 
-    phase_connector(
-        t,
-        m,
-        "np.unwrap",
-        cluster="all",
-        mjds_total=mjds_total,
-        residuals=residuals_start,
-        wraps=True,
-    )
-
-    if not save_state(
-        m=m,
-        t=t,
-        mjds=mjds_total,
-        pulsar_name=pulsar_name,
-        f=None,
-        args=args,
-        folder=alg_saves_mask_Path,
-        iteration="start_right_after_phase",
-        save_plot=True,
-    ):
-        # try next mask
-        return "continue"
-
-    print("Fitting...")
-    f = WLSFitter(t, m)
-    print("BEFORE:", f.get_fitparams())
-    # changing maxiter here may have some effects
-    print(f.fit_toas(maxiter=2))
-
-    print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
-    print("RMS in phase is", f.resids.phase_resids.std())
-    print("RMS in time is", f.resids.time_resids.std().to(u.us))
-    print("\n Best model is:")
-    print(f.model.as_parfile())
-
-    # new model so need to update table
-    t.table["delta_pulse_number"] = 0
-    t.compute_pulse_numbers(f.model)
-
-    # update the model
-    m = f.model
-
-    if not save_state(
-        f,
-        m,
-        t,
-        mjds_total,
-        pulsar_name,
-        args=args,
-        folder=alg_saves_mask_Path,
-        iteration="start",
-        save_plot=True,
-    ):
-        return "continue"
-
-    # something is certaintly wrong if the reduced chisq is greater that 3 at this stage,
-    # so APTB should not waste time attempting to coerce a solution
-    chisq_start = pint.residuals.Residuals(t, m).chi2_reduced
-    log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
-    if chisq_start > 3:
-        log.warning(
-            f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
+        # want to phase connect toas within a cluster first:
+        phase_connector(
+            t,
+            m,
+            "np.unwrap",
+            cluster="all",
+            mjds_total=mjds_total,
+            residuals=residuals_start,
+            wraps=True,
         )
-        plt.plot(mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids(), "o")
-        plt.show()
-        response = input(
-            f"The reduced chisq is {pint.residuals.Residuals(t, m).chi2_reduced}.\n"
-            + "This is adnormally high, should APTB continue anyway? (y/n)"
-        )
-        if response.lower() != "y":
-            log.warning("StartingJumpError")
-            raise StartingJumpError("Reduced chisq adnormally high, quitting program.")
+
+        if not save_state(
+            m=m,
+            t=t,
+            mjds=mjds_total,
+            pulsar_name=pulsar_name,
+            f=None,
+            args=args,
+            folder=alg_saves_mask_Path,
+            iteration=f"start_right_after_phase{start_iter}",
+            save_plot=True,
+        ):
+            # try next mask
+            return "continue"
+
+        print("Fitting...")
+        f = WLSFitter(t, m)
+        print("BEFORE:", f.get_fitparams())
+        # changing maxiter here may have some effects
+        print(f.fit_toas(maxiter=2))
+
+        print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
+        print("RMS in phase is", f.resids.phase_resids.std())
+        print("RMS in time is", f.resids.time_resids.std().to(u.us))
+        print("\n Best model is:")
+        print(f.model.as_parfile())
+
+        # new model so need to update table
+        t.table["delta_pulse_number"] = 0
+        t.compute_pulse_numbers(f.model)
+
+        # update the model
+        m = f.model
+
+        if not save_state(
+            f,
+            m,
+            t,
+            mjds_total,
+            pulsar_name,
+            args=args,
+            folder=alg_saves_mask_Path,
+            iteration=f"start{start_iter}",
+            save_plot=True,
+        ):
+            return "continue"
+
+        # something is certaintly wrong if the reduced chisq is greater that 3 at this stage
+        chisq_start = pint.residuals.Residuals(t, m).chi2_reduced
+        log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
+        if chisq_start > 3:
+            log.warning(
+                f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
+            )
+            # plt.plot(mjds_total, pint.residuals.Residuals(t, m).calc_phase_resids(), "o")
+            # plt.show()
+            print(
+                f"The reduced chisq is {pint.residuals.Residuals(t, m).chi2_reduced}.\n"
+                + "This is adnormally high. APTB will try phase connecting and fitting again.", end = "\n\n")
+
+            # raise StartingJumpError("Reduced chisq adnormally high, quitting program.")
+
+        else:
+            break
 
     # mask_with_closest will be everything not JUMPed, as well as the next clusters
     # to be de JUMPed
@@ -1521,8 +1547,8 @@ def main():
     #### FIXME When fulled implemented, DELETE the following line
     if socket.gethostname()[0] == "J":
         data_path = Path.cwd()
-    else:
-        data_path = Path("/data1/people/jdtaylor")
+    # else:
+    #     data_path = Path("/data1/people/jdtaylor")
     ####
     os.chdir(data_path)
 
@@ -1614,6 +1640,8 @@ def main():
                     maxiter_while,
                     for_loop_start=time.monotonic(),
                 )
+                if result == "success" and not args.all_solutions:
+                    break
             # usually handling ANY exception is frowned upon but if a mask
             # fails, it could be for a number of reasons which do not
             # proclude the success of other masks
@@ -1625,8 +1653,6 @@ def main():
                 )
 
             # a successful run will prevent others from running if args.all_solutions is the default
-            if result == "success" and not args.all_solutions:
-                break
     return "Completed"
 
 

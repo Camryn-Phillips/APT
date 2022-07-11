@@ -1488,7 +1488,7 @@ def main(argv=None):
                 # do polynomial extrapolation check
                 if (
                     maxmjd - minmjd
-                ) > args.pe_min_span * u.d and args.try_poly_extrap == True:
+                ) > args.pe_min_span * u.d and args.try_poly_extrap:
                     try:
                         t_others, mask = poly_extrap(
                             minmjd,

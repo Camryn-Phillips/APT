@@ -1,8 +1,8 @@
-# Created: 2022-07-11T09:23:55.006454
-# PINT_version: 0.8.8+334.g80f88daa
-# User: jackson
-# Host: Jacksons-MacBook-Pro.local
-# OS: macOS-10.16-x86_64-i386-64bit
+# Created: 2022-07-11T10:36:11.199786
+# PINT_version: 0.8.8+358.g85a5b2d
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
 # Format: pint
 PSR                                fake_1
 DILATEFREQ                              N
@@ -17,14 +17,6 @@ PX                                    0.0
 F0                      7.353693368448037 1 1e-06
 F1                                    0.0 0 0.0
 PEPOCH             56000.0000000000000000
-PLANET_SHAPIRO                          N
-DM                                    0.0 0 0.0
-BINARY                               ELL1
-PB                     2.9293847685997627 1 0.1
-A1                   0.030438545804327873 1 0.1
-TASC               56253.2036417999040000 1 0.1
-EPS1                                  0.0 0 0.0
-EPS2                                  0.0 0 0.0
 TZRMJD             56000.0000000000000000
 TZRSITE                               GBT
 TZRFRQ                             1400.0
@@ -51,3 +43,11 @@ JUMP            -jump_tim 20                       0.0 1 0.0
 JUMP            -jump_tim 21                       0.0 1 0.0
 JUMP            -jump_tim 22                       0.0 1 0.0
 JUMP            -jump_tim 23                       0.0 1 0.0
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+BINARY                               ELL1
+PB                     2.9293847685997627 1 0.1
+A1                   0.030438545804327873 1 0.1
+TASC               56253.2036417999040000 1 0.1
+EPS1                                  0.0 0 0.0
+EPS2                                  0.0 0 0.0
