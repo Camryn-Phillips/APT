@@ -1,4 +1,5 @@
 import pint.models as pm
+import pint.logging
 import numpy as np
 import sys
 import os
@@ -6,7 +7,7 @@ from pathlib import Path
 from pint.models.model_builder import parse_parfile
 from copy import deepcopy
 
-
+pint.logging.setup(level='WARNING')
 os.chdir("/data1/people/jdtaylor/binary_fake_data6")
 alg_saves = Path("alg_saves")
 successes = np.zeros(100, dtype = bool)
@@ -18,7 +19,10 @@ for i in range(1,101):
 
     top_path = Path(f"fake_{i}")
     os.chdir(alg_saves / top_path)
+    print(f"cwd = {os.getcwd()}")
+    print(f"listdir = {os.listdir()}")
     for dir in os.listdir():
+        dir = Path(dir)
         os.chdir(dir)
         if ".fin" not in os.listdir() or "old" in os.listdir():
             continue
@@ -35,4 +39,7 @@ for i in range(1,101):
 
         
         os.chdir("..")
+    os.chdir("..")
+
+print(successes)
     
