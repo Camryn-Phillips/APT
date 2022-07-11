@@ -31,7 +31,7 @@ class StartingJumpError(Exception):
 
 
 def starting_points(
-    toas, args=None, score_function="original", start_type=None, **kwargs
+    toas, args=None, score_function="original", start_type=None, start=[0], **kwargs
 ):
     """
     Choose which cluster to NOT jump, i.e. where to start
@@ -46,8 +46,16 @@ def starting_points(
     -------
     tuple : (mask_list[:max_starts], starting_cluster_list[:max_starts])
     """
+    mask_list = []
+    starting_cluster_list = []
+
     if start_type != None:
-        return
+        if start_type == "clusters":
+            for cluster_number in start:
+                mask_list.append(toas.table["clusters"] == cluster_number)
+            return mask_list, start
+        else:
+            raise Exception("Other start_types not supported")
 
     t = deepcopy(toas)
     if "clusters" not in t.table.columns:
@@ -59,12 +67,10 @@ def starting_points(
         score_list = (1.0 / dts).sum(axis=1)
     # different powers give different starting masks
     elif score_function == "original_different_power":
-        score_list = (1.0 / dts**args.power).sum(axis=1)
+        score_list = (1.0 / dts**args.score_power).sum(axis=1)
     else:
         raise TypeError(f"score function '{score_function}' not understood")
 
-    mask_list = []
-    starting_cluster_list = []
     # f = pint.fitter.WLSFitter(t, m)
     # f.fit_toas()
     i = -1
@@ -1046,6 +1052,18 @@ def APT_argument_parse(parser, argv):
         type=float,
         default=0.3,
     )
+    parser.add_argument(
+        "--all_solutions",
+        help="Whether to loop through different starting masks after having found at least one solution (t/f)",
+        type=str,
+        default="f",
+    )
+    parser.add_argument(
+        "--min_log_level",
+        help="The argument passed to pint.logging.setup(level='')",
+        type=str,
+        default="INFO",
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -1056,6 +1074,7 @@ def APT_argument_parse(parser, argv):
     args.plot_final = args.plot_final.lower()[0] == "t"
     args.multiprocessing = args.multiprocessing.lower()[0] == "t"
     args.check_phase_wraps = args.check_phase_wraps.lower()[0] == "t"
+    args.all_solutions = args.all_solutions.lower()[0] == "t"
 
     return args, parser
 
@@ -1063,6 +1082,7 @@ def APT_argument_parse(parser, argv):
 def main_for_loop(
     parfile,
     timfile,
+    args,
     mask_number,
     mask,
     starting_cluster,
@@ -1071,7 +1091,9 @@ def main_for_loop(
     pulsar_name,
     mjds_total,
     maxiter_while,
+    for_loop_start,
 ):
+    pint.logging.setup(level=args.min_log_level)
 
     # starting_cluster = starting_cluster_list[mask_number]
 
@@ -1396,7 +1418,7 @@ def main_for_loop(
 
     time_end_main = time.monotonic()
     print(
-        f"Final Runtime (not including plots): {time_end_main - start_time} seconds, or {(time_end_main - start_time) / 60.0} minutes"
+        f"Final Runtime (not including plots): {time_end_main - for_loop_start} seconds, or {(time_end_main - for_loop_start) / 60.0} minutes"
     )
     if args.plot_final:
         plt.show()
@@ -1406,7 +1428,7 @@ def main_for_loop(
     )
     plt.close()
 
-    # if success, stop trying and end programl
+    # if success, stop trying and end program
     if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
         print(
             "SUCCESS! A solution was found with reduced chi2 of",
@@ -1438,7 +1460,7 @@ def main_for_loop(
 
             if identical_solution != "Unknown":
                 print(
-                    f"\n\nThe .fin solution and comparison solution ARE {['NOT', ''][identical_solution]} identical.\n\n"
+                    f"\n\nThe .fin solution and comparison solution ARE{[ 'NOT', ''][identical_solution]} identical.\n\n"
                 )
             else:
                 print(
@@ -1453,7 +1475,7 @@ def main_for_loop(
         print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
         print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
         print(f"TOAs Removed (MJD): {bad_mjds}")
-        return "break"
+        return "success"
 
 
 def main():
@@ -1523,28 +1545,32 @@ def main():
     maxiter_while = args.maxiter_while
 
     mask_list, starting_cluster_list = starting_points(
-        toas, args, score_function="original_different_power", start_type=start_type
+        toas,
+        args,
+        score_function="original_different_power",
+        start_type=start_type,
+        start=start,
     )
-    # print(starting_cluster_list)
-    # raise Exception("stop")
-    # for mask_number, mask in enumerate(mask_list):
+
     if args.multiprocessing:
-        import multiprocessing
+        from multiprocessing import Pool
 
         log.warning(
             "Multiprocessing in use. Note: using multiprocessing can make\n"
             + "it difficult to diagnose errors for a particular starting cluster."
         )
-        p = multiprocessing.Pool
+        p = Pool(len(mask_list))
         results = []
         for mask_number, mask in enumerate(mask_list):
+            print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
             results.append(
                 p.apply_async(
-                    main,
+                    main_for_loop,
                     (
                         parfile,
                         timfile,
+                        args,
                         mask_number,
                         mask,
                         starting_cluster,
@@ -1553,24 +1579,31 @@ def main():
                         pulsar_name,
                         mjds_total,
                         maxiter_while,
+                        time.monotonic(),
                     ),
                 )
             )
-            # these two lines make the program wait until each process has concluded
-            p.close()
-            p.join()
+        # these two lines make the program wait until each process has concluded
+        p.close()
+        p.join()
+        print("Processes joined, looping through results:")
+        for i, r in enumerate(results):
+            print(f"\ni = {i}")
+            print(r)
             try:
-                pass
+                r.get()
             except Exception as e:
-                pass
+                print(e)
+        print()
 
     else:
         for mask_number, mask in enumerate(mask_list):
             starting_cluster = starting_cluster_list[mask_number]
             try:
-                main_for_loop(
+                result = main_for_loop(
                     parfile,
                     timfile,
+                    args,
                     mask_number,
                     mask,
                     starting_cluster,
@@ -1579,6 +1612,7 @@ def main():
                     pulsar_name,
                     mjds_total,
                     maxiter_while,
+                    for_loop_start=time.monotonic(),
                 )
             # usually handling ANY exception is frowned upon but if a mask
             # fails, it could be for a number of reasons which do not
@@ -1586,18 +1620,18 @@ def main():
             except Exception as e:
                 print(f"\n{e}\n")
                 print(
-                    f"mask_number {mask_number} (cluster {starting_cluster}) failed,"
+                    f"mask_number {mask_number} (cluster {starting_cluster}) failed,\n"
                     + "moving onto the next cluster."
                 )
 
+            # a successful run will prevent others from running if args.all_solutions is the default
+            if result == "success" and not args.all_solutions:
+                break
     return "Completed"
 
 
 if __name__ == "__main__":
     import sys
-
-    pint.logging.setup(level="WARNING")
-    # global args, parser
 
     start_time = time.monotonic()
     main()

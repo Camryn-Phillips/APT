@@ -36,16 +36,16 @@ def fib(n, m=4):
     # print(m)
     # if n == 5:
     #     raise Exception("test error")
-    if n == 36:
-        raise Exception("test error")
+    # if n == 36:
+    #     raise Exception("test error")
     if n == 1 or n == 0:
         return n
     else:
         return fib(n - 1, m) + fib(n - 2, m)
 
 
-def fib_print(n):
-    print(fib(n))
+def fib_print(*args):
+    print(fib(*args))
 
 
 def f(x):
@@ -72,10 +72,10 @@ if __name__ == "__main__":
     print("start")
     processN = 4
     p = Pool(processN)
-    numbers = [35, 36, 35]
+    numbers = [66, 66, 66, 66]
     results = []
     for number in numbers:
-        results.append(p.apply_async(fib_print, (number,)))
+        results.append(p.apply_async(fib_print, (number, 6)))
 
     print("right before close")
     p.close()
