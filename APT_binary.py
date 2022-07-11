@@ -26,8 +26,19 @@ import APT_binary_extension
 from loguru import logger as log
 
 
-class StartingJumpError(Exception):
-    pass
+class tcolors:
+    """
+    Class to store strings that change the color of text printed to the terminal
+    """
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 
 def starting_points(
@@ -683,9 +694,9 @@ def quadratic_phase_wrap_checker(
     iteration=1,
     pulsar_name="fake",
 ):
-    # TODO may need to use the F-test in here
     """
     Checks for phase wraps using the Freire and Ridolfi method.
+    Their method assumes a quadratic depence of the reduced chi sq on the phase wrap number.
 
     Parameters
     ----------
@@ -707,8 +718,8 @@ def quadratic_phase_wrap_checker(
     f, t
     """
     # if quadratic_phase_wrap_checker gets called a second time through recursion, throw an error
-    if wrap_checker_iteration >= 3:
-        raise RecursionError("In quadratic_phase_wrap_checker: maximum recursion depth exceeded (3)")
+    if wrap_checker_iteration > 2:
+        raise RecursionError("In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)")
 
     # run from highest to lowest b until no error is raised.
     # ideally, only b_i = b is run
@@ -746,7 +757,7 @@ def quadratic_phase_wrap_checker(
                     return WLSFitter(t, m), t
                 else:
                     raise e
-
+    print(f"chisq_samples = {chisq_samples}")
     min_wrap = round(
         (b / 2)
         * (chisq_samples[-b] - chisq_samples[b])
@@ -1260,7 +1271,7 @@ def main_for_loop(
         closest_cluster, dist = get_closest_cluster(
             deepcopy(t), deepcopy(t[mask_with_closest]), deepcopy(t)
         )
-        print("\nclosest cluster:", closest_cluster)
+        print(f"\n{tcolors.OKCYAN}closest cluster: {closest_cluster}{tcolors.ENDC}")
         if closest_cluster is None:
             # end the program
             break
