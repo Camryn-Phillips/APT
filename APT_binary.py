@@ -24,21 +24,47 @@ import socket
 from APT import get_closest_cluster, solution_compare, bad_points
 import APT_binary_extension
 from loguru import logger as log
+import treelib
+from dataclasses import dataclass
+
+
+class CustomTree(treelib.Tree):
+    """
+    Allows for additional functions
+    """
+
+    pass
+
+
+class CustomNode(treelib.Node):
+    """
+    Allows for additional functions
+    """
+
+    pass
+
+
+@dataclass
+class NodeData:
+    t: pint.toa.TOAs
+    m: pint.models.timing_model.TimingModel
+    args: dict
 
 
 class tcolors:
     """
     Class to store strings that change the color of text printed to the terminal
     """
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
 
 
 def starting_points(
@@ -719,7 +745,9 @@ def quadratic_phase_wrap_checker(
     """
     # if quadratic_phase_wrap_checker gets called a second time through recursion, throw an error
     if wrap_checker_iteration > 2:
-        raise RecursionError("In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)")
+        raise RecursionError(
+            "In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)"
+        )
 
     # run from highest to lowest b until no error is raised.
     # ideally, only b_i = b is run
@@ -1088,11 +1116,11 @@ def APT_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--save_state",
-        help="Whether to take the time to save state (t/f). Setting to false could lower runtime, however making\n"+"diagnosing issues very diffuclt.",
+        help="Whether to take the time to save state (t/f). Setting to false could lower runtime, however making\n"
+        + "diagnosing issues very diffuclt.",
         type=str,
         default="t",
     )
-
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -1169,7 +1197,9 @@ def main_for_loop(
     while True:
         start_iter += 1
         if start_iter > 3:
-            log.error("StartingJumpError: Reduced chisq adnormally high, quitting program.")
+            log.error(
+                "StartingJumpError: Reduced chisq adnormally high, quitting program."
+            )
             raise RecursionError("In start:maximum recursion depth exceeded (3)")
         residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
 
@@ -1241,7 +1271,9 @@ def main_for_loop(
             # plt.show()
             print(
                 f"The reduced chisq is {pint.residuals.Residuals(t, m).chi2_reduced}.\n"
-                + "This is adnormally high. APTB will try phase connecting and fitting again.", end = "\n\n")
+                + "This is adnormally high. APTB will try phase connecting and fitting again.",
+                end="\n\n",
+            )
 
             # raise StartingJumpError("Reduced chisq adnormally high, quitting program.")
 
@@ -1524,6 +1556,9 @@ def main():
     )
     args, parser = APT_argument_parse(parser, argv=None)
 
+    # print(type(args))
+    # raise Exception("stop")
+
     # args, parser, mask_selector = main_args
     flag_name = "jump_tim"
 
@@ -1628,7 +1663,7 @@ def main():
             print(f"\ni = {i}")
             print(r)
             try:
-                r.get()
+                print(r.get())
             except Exception as e:
                 print(e)
         print()
