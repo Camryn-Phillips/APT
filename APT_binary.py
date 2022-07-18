@@ -46,8 +46,8 @@ class CustomNode(treelib.Node):
 
 @dataclass
 class NodeData:
-    t: pint.toa.TOAs
     m: pint.models.timing_model.TimingModel
+    t: pint.toa.TOAs
     args: dict
 
 
@@ -1121,6 +1121,12 @@ def APT_argument_parse(parser, argv):
         type=str,
         default="t",
     )
+    parser.add_argument(
+        "--branches",
+        help="Whether to try to solve phase wraps that yield a reduced chisq less than 2 (t/f)",
+        type=str,
+        default="f",
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
@@ -1133,6 +1139,7 @@ def APT_argument_parse(parser, argv):
     args.check_phase_wraps = args.check_phase_wraps.lower()[0] == "t"
     args.all_solutions = args.all_solutions.lower()[0] == "t"
     args.save_state = args.save_state.lower()[0] == "t"
+    args.branches = args.branches.lower()[0] == "t"
 
     return args, parser
 
@@ -1200,7 +1207,7 @@ def main_for_loop(
             log.error(
                 "StartingJumpError: Reduced chisq adnormally high, quitting program."
             )
-            raise RecursionError("In start:maximum recursion depth exceeded (3)")
+            raise RecursionError("In start: maximum recursion depth exceeded (3)")
         residuals_start = pint.residuals.Residuals(t, m).calc_phase_resids()
 
         # want to phase connect toas within a cluster first:
@@ -1692,6 +1699,7 @@ def main():
             # fails, it could be for a number of reasons which do not
             # proclude the success of other masks
             except Exception as e:
+                raise e
                 print(f"\n{e}\n")
                 print(
                     f"mask_number {mask_number} (cluster {starting_cluster}) failed,\n"

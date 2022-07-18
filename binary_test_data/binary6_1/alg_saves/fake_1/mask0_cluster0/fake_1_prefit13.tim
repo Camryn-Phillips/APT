@@ -1,9 +1,9 @@
 FORMAT 1
-C Created: 2022-07-11T10:38:46.941796
-C PINT_version: 0.8.8+358.g85a5b2d
-C User: jdtaylor
-C Host: nimrod
-C OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+C Created: 2022-07-12T15:58:59.372747
+C PINT_version: 0.8.8+358.g85a5b2db
+C User: jackson
+C Host: Jacksons-MacBook-Pro.local
+C OS: macOS-10.16-x86_64-i386-64bit
 fake 1400.000000 56000.0000000926059144 1074.000 gbt  -format Tempo2 -pn 0.0
 fake 1400.000000 56000.0174818228264005 1074.000 gbt  -format Tempo2 -pn 11108.0
 fake 1400.000000 56000.0349635884882523 1074.000 gbt  -format Tempo2 -pn 22216.0
