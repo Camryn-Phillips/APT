@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -W ignore::FutureWarning -W ignore::UserWarning -W ignore:DeprecationWarning
+from locale import currency
+from APT.APT_binary_extension import skeleton_tree
 import pint.toa
 import pint.models
 import pint.fitter
@@ -56,31 +58,35 @@ class CustomTree(treelib.Tree):
         mask_with_closest,
         closest_cluster_mask,
         maxiter_while,
-        tree_parent,
+        current_parent,
     ):
+        depth = self[current_parent].data.depth
+        # this function only has meaning inside of branch_creator so it is defined here.
         def branch_node_creator(self, node_name, number):
-            self.history.append((tree_parent, node_name))
+            self.history.append((current_parent, node_name))
             self.create_node(
                 node_name,
                 node_name,
-                parent=tree_parent,
+                parent=current_parent,
                 data=NodeData(
                     f_wrap_dict[number].model,
                     t_wrap_dict[number],
                     f_wrap_dict[number],
-                    closest_cluster_mask,
                     mask_with_closest,
-                    iteration + 1,
+                    depth + 1,
                 ),
             )
 
-        # hopefully 26 nodes per parent will be enough
+        # hopefully 26 nodes per parent will be enough, incorporate 'AA', 'AB', ... otherwise
         node_letters = list(string.ascii_uppercase)
+        node_name = f"{depth}{node_letters.pop(0)}"
         branch_node_creator(
             self,
-            f"{iteration}{node_letters.pop(0)}",
+            node_name,
             min_wrap_number_total,
         )
+        chisq_accepted = {chisq_wrap[min_wrap_number_total]: min_wrap_number_total}
+        branches = {chisq_wrap[min_wrap_number_total]: node_name}
         chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
 
         # if min_wrap_number_total is also the wrap predicted by the vertex, then its
@@ -94,10 +100,15 @@ class CustomTree(treelib.Tree):
             increment_factor_list = []
             for i in [-1, 1]:
                 if chisq_wrap_reversed[i] < 2:
+                    node_name = f"{depth}{node_letters.pop(0)}"
+                    chisq_accepted[chisq_wrap[min_wrap_number_total + i]] = (
+                        min_wrap_number_total + i
+                    )
+                    branches = {chisq_wrap[min_wrap_number_total + i]: node_name}
                     increment_factor_list.append(-1)
                     branch_node_creator(
                         self,
-                        f"{iteration}{node_letters.pop(0)}",
+                        node_name,
                         min_wrap_number_total + i,
                     )
             increment = 2
@@ -120,9 +131,14 @@ class CustomTree(treelib.Tree):
                 f.reset_model()
 
                 if f.resids.chi2_reduced < 2:
+                    node_name = f"{depth}{node_letters.pop(0)}"
+                    chisq_accepted[f.resids.chi2_reduced] = (
+                        min_wrap + increment_factor * increment
+                    )
+                    branches = {f.resids.chi2_reduced: node_name}
                     branch_node_creator(
                         self,
-                        f"{iteration}{node_letters.pop(0)}",
+                        node_name,
                         increment_factor + increment,
                     )
                 else:
@@ -131,8 +147,15 @@ class CustomTree(treelib.Tree):
                 # f_wrap_dict[min_wrap - increment] = deepcopy(f)
             increment += 1
 
-        chisq = list(chisq_wrap.keys())
-        chisq.sort()
+        chisq_list = list(chisq_accepted.keys())
+        chisq_list.sort()
+        # the branch order that APTB will follow
+        order = tuple([branches[chisq] for chisq in chisq_list])
+        self[current_parent].order = order
+
+    def branch_pruner(self, node_to_prune):
+        self.remove_node(node_to_prune)
+        # perhaps more stuff here:
 
 
 class CustomNode(treelib.Node):
@@ -140,20 +163,21 @@ class CustomNode(treelib.Node):
     Allows for additional functions
     """
 
-    pass
+    def __init__(self, tag=None, identifier=None, expanded=True, data=None):
+        super().__init__(tag, identifier, expanded, data)
+        self.order = None
 
 
 @dataclass
 class NodeData:
-    m: pint.models.timing_model.TimingModel
-    t: pint.toa.TOAs
-    f: pint.fitter.Fitter
-    closest_cluster_mask: np.ndarray
-    mask_with_closest: np.ndarray
-    iteration: int
+    m: pint.models.timing_model.TimingModel = None
+    t: pint.toa.TOAs = None
+    f: pint.fitter.Fitter = None
+    mask_with_closest: np.ndarray = None
+    depth: int = 1
 
     def __iter__(self):
-        return iter((self.m, self.t, self.f, self.closest_cluster_mask))
+        return iter((self.m, self.t, self.f, self.mask_with_closest))
 
 
 class tcolors:
@@ -821,7 +845,7 @@ def quadratic_phase_wrap_checker(
     closest_cluster,
     args,
     solution_tree,
-    tree_parent,
+    current_parent,
     folder=None,
     wrap_checker_iteration=1,
     iteration=1,
@@ -919,9 +943,18 @@ def quadratic_phase_wrap_checker(
     if min_chisq > 2:
         # if the chisq is still above 2, then prune this branch
         if wrap_checker_iteration >= 2:
-            raise RecursionError(
-                "In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)"
+            print(
+                f"quadratic_phase_wrap_checker ran twice without any difference, pruning branch"
             )
+            # do not prune here, but by not giving the parent an order instance,
+            # it will be pruned shortly after this return
+            # solution_tree.branch_pruner(current_parent)
+            # raise RecursionError(
+            #     "In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)"
+            # )
+
+            # a tuple must be returned
+            return None, None
 
         t = t_copy
         log.warning(
@@ -963,7 +996,7 @@ def quadratic_phase_wrap_checker(
             closest_cluster,
             args,
             solution_tree,
-            tree_parent,
+            current_parent,
             folder,
             wrap_checker_iteration + 1,
             iteration,
@@ -1017,13 +1050,14 @@ def quadratic_phase_wrap_checker(
             min_wrap_number_total,
             closest_cluster_mask,
             maxiter_while,
-            tree_parent,
+            current_parent,
         )
+        return None, None
     else:
         t = t_wrap_dict[min_wrap_number_total]
         f = f_wrap_dict[min_wrap_number_total]
 
-    return f, t  # , chisq_samples, min_wrap_number_total
+        return f, t
 
     # t_closest_cluster.table["delta_pulse_number"] = min_wrap_number_total
     # t.table[closest_cluster_mask] = t_closest_cluster.table
@@ -1247,6 +1281,12 @@ def APTB_argument_parse(parser, argv):
         "--branches",
         help="Whether to try to solve phase wraps that yield a reduced chisq less than 2 (t/f)",
         type=str,
+        default="t",
+    )
+    parser.add_argument(
+        "--debug_mode",
+        help="Whether to enter debug mode (t/f)",
+        type=str,
         default="f",
     )
 
@@ -1262,6 +1302,7 @@ def APTB_argument_parse(parser, argv):
     args.all_solutions = args.all_solutions.lower()[0] == "t"
     args.save_state = args.save_state.lower()[0] == "t"
     args.branches = args.branches.lower()[0] == "t"
+    args.debug_mode = args.debug_mode.lower()[0] == "t"
 
     return args, parser
 
@@ -1425,7 +1466,7 @@ def main_for_loop(
 
     # this starts the solution tree
 
-    tree_parent = "1A"
+    current_parent = "1A"
     iteration = 0
     while True:
         # the main while True loop of the algorithm:
@@ -1511,11 +1552,31 @@ def main_for_loop(
                 closest_cluster=closest_cluster,
                 args=args,
                 solution_tree=solution_tree,
-                tree_parent=tree_parent,
+                current_parent=current_parent,
                 folder=alg_saves_mask_Path,
                 iteration=iteration,
                 pulsar_name=pulsar_name,
             )
+        # select the relevant information to be used based on the deepest node,
+        # ties being determined by parent.order
+        if args.branches:
+            current_parent_node = solution_tree[current_parent]
+
+            while True:
+                if current_parent_node.order:
+                    break
+                new_parent = solution_tree.parent(current_parent)
+                solution_tree.remove_node(current_parent)
+
+                current_parent = new_parent
+                current_parent_node = solution_tree[current_parent]
+            # selects the desired branch and also removes it from the order list
+            selected_node_id = current_parent_node.order.pop(0)
+            selected_node = solution_tree[selected_node_id]
+            current_parent = selected_node_id
+
+            m, t, f, mask_with_closest = selected_node.data
+
         f.fit_toas(maxiter=maxiter_while)
         t.table["delta_pulse_number"] = 0
         t.compute_pulse_numbers(f.model)
@@ -1766,7 +1827,7 @@ def main():
             print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
             solution_tree = CustomTree(node_class=CustomNode)
-            solution_tree.create_node("1A", "1A")
+            solution_tree.create_node("1A", "1A", data=NodeData(depth=1))
             results.append(
                 p.apply_async(
                     main_for_loop,
@@ -1803,7 +1864,7 @@ def main():
         for mask_number, mask in enumerate(mask_list):
             starting_cluster = starting_cluster_list[mask_number]
             solution_tree = CustomTree(node_class=CustomNode)
-            solution_tree.create_node("1A", "1A")
+            solution_tree.create_node("1A", "1A", data=NodeData(depth=1))
             try:
                 result = main_for_loop(
                     parfile,
@@ -1826,12 +1887,17 @@ def main():
             # fails, it could be for a number of reasons which do not
             # preclude the success of other masks
             except Exception as e:
-                raise e
+                if args.debug_mode:
+                    raise e
                 print(f"\n{e}\n")
                 print(
                     f"mask_number {mask_number} (cluster {starting_cluster}) failed,\n"
                     + "moving onto the next cluster."
                 )
+            finally:
+                print(solution_tree.history)
+                skeleton_tree = APT_binary_extension.skeleton_tree_creator(solution_tree.history)
+                skeleton_tree.show()
 
             # a successful run will prevent others from running if args.all_solutions is the default
     return "Completed"

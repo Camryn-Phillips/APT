@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 import socket
 import APT_binary
+import treelib
 
 
 """
@@ -50,3 +51,11 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
         pass
 
     return m, t, f, f_params, span, Ftests, args
+
+
+def skeleton_tree_creator(blueprint):
+    tree = treelib.Tree()
+    tree.create_node("1A", "1A")
+    for parent, child in blueprint:
+        tree.create_node(child, child, parent=parent)
+    return tree
