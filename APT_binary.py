@@ -52,33 +52,58 @@ class CustomTree(treelib.Tree):
         min_wrap,
         iteration,
         chisq_wrap,
+        min_wrap_number_total,
+        mask_with_closest,
         closest_cluster_mask,
         maxiter_while,
         tree_parent,
     ):
-        def branch_node_creator(self, node_name, parent, number):
+        def branch_node_creator(self, node_name, number):
+            self.history.append((tree_parent, node_name))
             self.create_node(
                 node_name,
                 node_name,
-                parent=parent,
+                parent=tree_parent,
                 data=NodeData(
                     f_wrap_dict[number].model,
                     t_wrap_dict[number],
                     f_wrap_dict[number],
                     closest_cluster_mask,
+                    mask_with_closest,
+                    iteration + 1,
                 ),
             )
 
-        increment_factor_list = []
-
-        # hopefully 26 nodes would be enough
+        # hopefully 26 nodes per parent will be enough
         node_letters = list(string.ascii_uppercase)
+        branch_node_creator(
+            self,
+            f"{iteration}{node_letters.pop(0)}",
+            min_wrap_number_total,
+        )
         chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
-        for i in [-1, 1]:
-            if chisq_wrap_reversed[i] < 2:
-                increment_factor_list.append(-1)
-                branch_node_creator(f"{iteration}{node_letters.pop(0)}", tree_parent, i)
-        increment = 2
+
+        # if min_wrap_number_total is also the wrap predicted by the vertex, then its
+        # immediate neighbors have already been calculated. Thus, this can save a little
+        # bit of time, especially if its immediate neighbors already preclude
+        # the need for any branches
+        if (
+            min_wrap_number_total - 1 in chisq_wrap_reversed
+            and min_wrap_number_total + 1 in chisq_wrap_reversed
+        ):
+            increment_factor_list = []
+            for i in [-1, 1]:
+                if chisq_wrap_reversed[i] < 2:
+                    increment_factor_list.append(-1)
+                    branch_node_creator(
+                        self,
+                        f"{iteration}{node_letters.pop(0)}",
+                        min_wrap_number_total + i,
+                    )
+            increment = 2
+        else:
+            increment_factor_list = [-1, 1]
+            increment = 1
         while increment_factor_list:
             for increment_factor in increment_factor_list:
                 t.table["delta_pulse_number"][closest_cluster_mask] = (
@@ -89,16 +114,25 @@ class CustomTree(treelib.Tree):
                 # t_plus_minus["delta_pulse_number"] = 0
                 # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
 
-                chisq_wrap[f.resids.chi2_reduced] = min_wrap + increment_factor * increment
+                chisq_wrap[f.resids.chi2_reduced] = (
+                    min_wrap + increment_factor * increment
+                )
                 f.reset_model()
 
                 if f.resids.chi2_reduced < 2:
-                    pass
+                    branch_node_creator(
+                        self,
+                        f"{iteration}{node_letters.pop(0)}",
+                        increment_factor + increment,
+                    )
                 else:
-                    pass
-                t_wrap_dict[min_wrap - increment] = deepcopy(t)
-                f_wrap_dict[min_wrap - increment] = deepcopy(f)
+                    increment_factor_list.remove(increment_factor)
+                # t_wrap_dict[min_wrap - increment] = deepcopy(t)
+                # f_wrap_dict[min_wrap - increment] = deepcopy(f)
             increment += 1
+
+        chisq = list(chisq_wrap.keys())
+        chisq.sort()
 
 
 class CustomNode(treelib.Node):
@@ -115,6 +149,8 @@ class NodeData:
     t: pint.toa.TOAs
     f: pint.fitter.Fitter
     closest_cluster_mask: np.ndarray
+    mask_with_closest: np.ndarray
+    iteration: int
 
     def __iter__(self):
         return iter((self.m, self.t, self.f, self.closest_cluster_mask))
@@ -970,7 +1006,19 @@ def quadratic_phase_wrap_checker(
         plt.close()
 
     if args.branches:
-        solution_tree.branch_creator()
+        solution_tree.branch_creator(
+            t,
+            f,
+            t_wrap_dict,
+            f_wrap_dict,
+            min_wrap,
+            iteration,
+            chisq_wrap,
+            min_wrap_number_total,
+            closest_cluster_mask,
+            maxiter_while,
+            tree_parent,
+        )
     else:
         t = t_wrap_dict[min_wrap_number_total]
         f = f_wrap_dict[min_wrap_number_total]
@@ -1231,6 +1279,7 @@ def main_for_loop(
     mjds_total,
     maxiter_while,
     for_loop_start,
+    solution_tree,
 ):
     pint.logging.setup(level=args.min_log_level)
 
@@ -1375,11 +1424,8 @@ def main_for_loop(
     mask_with_closest = deepcopy(mask)
 
     # this starts the solution tree
-    beginning_data = NodeData(m, t, f)
-    solution_tree = CustomTree(node_class=CustomNode)
-    solution_tree.create_node("1A", "1A", data=beginning_data)
-    tree_parent = "1A"
 
+    tree_parent = "1A"
     iteration = 0
     while True:
         # the main while True loop of the algorithm:
@@ -1719,6 +1765,8 @@ def main():
         for mask_number, mask in enumerate(mask_list):
             print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
+            solution_tree = CustomTree(node_class=CustomNode)
+            solution_tree.create_node("1A", "1A")
             results.append(
                 p.apply_async(
                     main_for_loop,
@@ -1754,6 +1802,8 @@ def main():
     else:
         for mask_number, mask in enumerate(mask_list):
             starting_cluster = starting_cluster_list[mask_number]
+            solution_tree = CustomTree(node_class=CustomNode)
+            solution_tree.create_node("1A", "1A")
             try:
                 result = main_for_loop(
                     parfile,
@@ -1767,13 +1817,14 @@ def main():
                     pulsar_name,
                     mjds_total,
                     maxiter_while,
-                    for_loop_start=time.monotonic(),
+                    time.monotonic(),
+                    solution_tree,
                 )
                 if result == "success" and not args.all_solutions:
                     break
             # usually handling ANY exception is frowned upon but if a mask
             # fails, it could be for a number of reasons which do not
-            # proclude the success of other masks
+            # preclude the success of other masks
             except Exception as e:
                 raise e
                 print(f"\n{e}\n")
