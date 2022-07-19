@@ -26,6 +26,7 @@ import APT_binary_extension
 from loguru import logger as log
 import treelib
 from dataclasses import dataclass
+import string
 
 
 class CustomTree(treelib.Tree):
@@ -33,7 +34,71 @@ class CustomTree(treelib.Tree):
     Allows for additional functions
     """
 
-    pass
+    def __init__(
+        self, tree=None, deep=False, node_class=None, identifier=None, history=[]
+    ):
+        super().__init__(tree, deep, node_class, identifier)
+
+        # will store this in a list so that when a branch is pruned
+        # I can reconstruct the skeleton of the tree later
+        self.history = history
+
+    def branch_creator(
+        self,
+        t,
+        f,
+        t_wrap_dict,
+        f_wrap_dict,
+        min_wrap,
+        iteration,
+        chisq_wrap,
+        closest_cluster_mask,
+        maxiter_while,
+        tree_parent,
+    ):
+        def branch_node_creator(self, node_name, parent, number):
+            self.create_node(
+                node_name,
+                node_name,
+                parent=parent,
+                data=NodeData(
+                    f_wrap_dict[number].model,
+                    t_wrap_dict[number],
+                    f_wrap_dict[number],
+                    closest_cluster_mask,
+                ),
+            )
+
+        increment_factor_list = []
+
+        # hopefully 26 nodes would be enough
+        node_letters = list(string.ascii_uppercase)
+        chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
+        for i in [-1, 1]:
+            if chisq_wrap_reversed[i] < 2:
+                increment_factor_list.append(-1)
+                branch_node_creator(f"{iteration}{node_letters.pop(0)}", tree_parent, i)
+        increment = 2
+        while increment_factor_list:
+            for increment_factor in increment_factor_list:
+                t.table["delta_pulse_number"][closest_cluster_mask] = (
+                    min_wrap + increment_factor * increment
+                )
+                f.fit_toas(maxiter=maxiter_while)
+
+                # t_plus_minus["delta_pulse_number"] = 0
+                # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
+
+                chisq_wrap[f.resids.chi2_reduced] = min_wrap + increment_factor * increment
+                f.reset_model()
+
+                if f.resids.chi2_reduced < 2:
+                    pass
+                else:
+                    pass
+                t_wrap_dict[min_wrap - increment] = deepcopy(t)
+                f_wrap_dict[min_wrap - increment] = deepcopy(f)
+            increment += 1
 
 
 class CustomNode(treelib.Node):
@@ -48,7 +113,11 @@ class CustomNode(treelib.Node):
 class NodeData:
     m: pint.models.timing_model.TimingModel
     t: pint.toa.TOAs
-    args: dict
+    f: pint.fitter.Fitter
+    closest_cluster_mask: np.ndarray
+
+    def __iter__(self):
+        return iter((self.m, self.t, self.f, self.closest_cluster_mask))
 
 
 class tcolors:
@@ -715,6 +784,8 @@ def quadratic_phase_wrap_checker(
     maxiter_while,
     closest_cluster,
     args,
+    solution_tree,
+    tree_parent,
     folder=None,
     wrap_checker_iteration=1,
     iteration=1,
@@ -743,12 +814,6 @@ def quadratic_phase_wrap_checker(
     -------
     f, t
     """
-    # if quadratic_phase_wrap_checker gets called a second time through recursion, throw an error
-    if wrap_checker_iteration > 2:
-        raise RecursionError(
-            "In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)"
-        )
-
     # run from highest to lowest b until no error is raised.
     # ideally, only b_i = b is run
     t_copy = deepcopy(t)
@@ -815,7 +880,13 @@ def quadratic_phase_wrap_checker(
 
     # This likely means a new parameter needs to be added, in which case
     # the phase wrapper should be ran AFTER the F-test call:
-    if min_chisq > 3:
+    if min_chisq > 2:
+        # if the chisq is still above 2, then prune this branch
+        if wrap_checker_iteration >= 2:
+            raise RecursionError(
+                "In quadratic_phase_wrap_checker: maximum recursion depth exceeded (2)"
+            )
+
         t = t_copy
         log.warning(
             f"min_chisq = {min_chisq} > 3, attempting F-test, then rerunning quadratic_phase_wrap_checker"
@@ -855,6 +926,8 @@ def quadratic_phase_wrap_checker(
             maxiter_while,
             closest_cluster,
             args,
+            solution_tree,
+            tree_parent,
             folder,
             wrap_checker_iteration + 1,
             iteration,
@@ -873,7 +946,7 @@ def quadratic_phase_wrap_checker(
         print("#" * 100)
         print(f"Phase wrap not equal to 0.")
         print("#" * 100)
-        chisq_wrap = {}
+        chisq_wrap_notzero = {}
         for wrap in range(min_wrap_number_total - 10, min_wrap_number_total + 11):
             # print(wrap)
             t.table["delta_pulse_number"][closest_cluster_mask] = wrap
@@ -882,13 +955,11 @@ def quadratic_phase_wrap_checker(
             # t_plus_minus["delta_pulse_number"] = 0
             # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
 
-            chisq_wrap[wrap] = f.resids.chi2_reduced
+            chisq_wrap_notzero[wrap] = f.resids.chi2_reduced
             f.reset_model()
-            t_wrap_dict[wrap] = deepcopy(t)
-            f_wrap_dict[wrap] = deepcopy(f)
-        print(chisq_wrap)
-        x = chisq_wrap.keys()
-        y = [chisq_wrap[key] for key in chisq_wrap.keys()]
+        print(chisq_wrap_notzero)
+        x = chisq_wrap_notzero.keys()
+        y = [chisq_wrap_notzero[key] for key in chisq_wrap_notzero.keys()]
         fig, ax = plt.subplots()
         ax.plot(x, y, "o")
         ax.set_title(f"Jumping cluster {closest_cluster}")
@@ -898,8 +969,11 @@ def quadratic_phase_wrap_checker(
         fig.savefig(folder / Path(f"Jumping cluster {closest_cluster}.png"))
         plt.close()
 
-    t = t_wrap_dict[min_wrap_number_total]
-    f = f_wrap_dict[min_wrap_number_total]
+    if args.branches:
+        solution_tree.branch_creator()
+    else:
+        t = t_wrap_dict[min_wrap_number_total]
+        f = f_wrap_dict[min_wrap_number_total]
 
     return f, t  # , chisq_samples, min_wrap_number_total
 
@@ -907,7 +981,7 @@ def quadratic_phase_wrap_checker(
     # t.table[closest_cluster_mask] = t_closest_cluster.table
 
 
-def APT_argument_parse(parser, argv):
+def APTB_argument_parse(parser, argv):
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
     parser.add_argument(
@@ -1199,7 +1273,6 @@ def main_for_loop(
 
     # the following before the bigger while loop is the very first fit with only one cluster not JUMPed.
     # ideally, the following only runs once
-
     start_iter = 0
     while True:
         start_iter += 1
@@ -1287,9 +1360,6 @@ def main_for_loop(
         else:
             break
 
-    # mask_with_closest will be everything not JUMPed, as well as the next clusters
-    # to be de JUMPed
-
     # the following list comprehension allows a JUMP number to be found
     # by indexing this list with its cluster number. The wallrus operator
     # is used for brevity.
@@ -1300,10 +1370,19 @@ def main_for_loop(
     ]
     skip_mask = False
     bad_mjds = []
+    # mask_with_closest will be everything not JUMPed, as well as the next clusters
+    # to be de JUMPed
     mask_with_closest = deepcopy(mask)
+
+    # this starts the solution tree
+    beginning_data = NodeData(m, t, f)
+    solution_tree = CustomTree(node_class=CustomNode)
+    solution_tree.create_node("1A", "1A", data=beginning_data)
+    tree_parent = "1A"
+
     iteration = 0
     while True:
-        # the main loop of the algorithm
+        # the main while True loop of the algorithm:
         iteration += 1
 
         # find the closest cluster
@@ -1319,7 +1398,7 @@ def main_for_loop(
 
         # TODO add polyfit here
         # random models can cover this instead
-        # do slopes match from next few clusters, or does a quadratic fit
+        # do slopes match from next few clusters, or does a quadratic/cubic fit
 
         mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
 
@@ -1374,7 +1453,6 @@ def main_for_loop(
             skip_mask = True
             break
 
-        # TODO add pontential phase wraps here
         f = pint.fitter.WLSFitter(t, m)
         if args.check_phase_wraps:
             f, t = quadratic_phase_wrap_checker(
@@ -1386,6 +1464,8 @@ def main_for_loop(
                 maxiter_while=maxiter_while,
                 closest_cluster=closest_cluster,
                 args=args,
+                solution_tree=solution_tree,
+                tree_parent=tree_parent,
                 folder=alg_saves_mask_Path,
                 iteration=iteration,
                 pulsar_name=pulsar_name,
@@ -1401,13 +1481,9 @@ def main_for_loop(
 
         # TODO use random models or design matrix here
 
-        # # TODO add pontential phase wraps here
-        # m, t = quadratic_phase_wrap_checker(m, t, mask_with_closest, closest_cluster_mask)
-
         # TODO add check_bad_points here-ish
 
         # use the F-test to determine if another parameter should be fit
-
         m = do_Ftests(t, m, mask_with_closest, args)
 
         # fit
@@ -1432,7 +1508,7 @@ def main_for_loop(
             skip_mask = True
             break
 
-        # repeat while loop
+        # repeat while True loop
 
     # if skip_mask was set to true in the while loop, then move onto the next mask
     if skip_mask:
@@ -1561,7 +1637,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="PINT tool for agorithmically timing binary pulsars."
     )
-    args, parser = APT_argument_parse(parser, argv=None)
+    args, parser = APTB_argument_parse(parser, argv=None)
 
     # print(type(args))
     # raise Exception("stop")
