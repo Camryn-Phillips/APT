@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # -W ignore::FutureWarning -W ignore::UserWarning -W ignore:DeprecationWarning
-from locale import currency
-from APT.APT_binary_extension import skeleton_tree
 import pint.toa
 import pint.models
 import pint.fitter
@@ -1896,7 +1894,9 @@ def main():
                 )
             finally:
                 print(solution_tree.history)
-                skeleton_tree = APT_binary_extension.skeleton_tree_creator(solution_tree.history)
+                skeleton_tree = APT_binary_extension.skeleton_tree_creator(
+                    solution_tree.history
+                )
                 skeleton_tree.show()
 
             # a successful run will prevent others from running if args.all_solutions is the default
