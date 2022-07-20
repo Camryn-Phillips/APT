@@ -802,6 +802,8 @@ def do_Ftests(t, m, mask_with_closest, args):
             getattr(m, "EPS2").frozen = False
         else:
             getattr(m, add_param).frozen = False
+    if args.debug_mode:
+        print(f"Ftests = {Ftests}")
 
     return m
 
@@ -880,6 +882,7 @@ def quadratic_phase_wrap_checker(
     # run from highest to lowest b until no error is raised.
     # ideally, only b_i = b is run
     t_copy = deepcopy(t)
+    m_copy = deepcopy(m)
     for b_i in range(b, -1, -1):
         f = WLSFitter(t, m)
         chisq_samples = {}
@@ -960,8 +963,9 @@ def quadratic_phase_wrap_checker(
             return None, None
 
         t = t_copy
+        m = m_copy
         log.warning(
-            f"min_chisq = {min_chisq} > 3, attempting F-test, then rerunning quadratic_phase_wrap_checker"
+            f"min_chisq = {min_chisq} > 2, attempting F-test, then rerunning quadratic_phase_wrap_checker (iteration = {iteration})"
         )
         m = do_Ftests(t, m, mask_with_closest, args)
         f = WLSFitter(t, m)
