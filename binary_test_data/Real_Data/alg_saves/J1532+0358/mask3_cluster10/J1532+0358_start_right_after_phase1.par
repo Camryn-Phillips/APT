@@ -1,5 +1,5 @@
-# Created: 2022-07-12T16:38:34.583253
-# PINT_version: 0.8.8+358.g85a5b2db
+# Created: 2022-07-20T15:17:25.861130
+# PINT_version: 0.8.8+418.ga8daf805
 # User: jackson
 # Host: Jacksons-MacBook-Pro.local
 # OS: macOS-10.16-x86_64-i386-64bit
@@ -24,17 +24,6 @@ PX                                    0.0
 F0                   402.8141842114539486 1 3.452281e-10
 F1                    -2.617801063551e-13 1 1.982604974193e-17
 PEPOCH             58999.1467000000000000
-CORRECT_TROPOSPHERE                         N
-PLANET_SHAPIRO                          N
-SOLARN0                              10.0
-SWM                                   0.0
-DM                              27.579698
-BINARY                               ELL1
-PB                       0.07933693886978 1 1.1552e-10
-A1                            0.111902506 1 1.513e-06
-TASC               58999.1078514090000000 1 1.12e-07
-EPS1                                  0.0
-EPS2                                  0.0
 TZRMJD             58999.1467675875243750
 TZRSITE                                GB
 TZRFRQ                            819.624
@@ -51,3 +40,14 @@ JUMP            -jump_tim 7                       0.0 1 0.0
 JUMP            -jump_tim 8                       0.0 1 0.0
 JUMP            -jump_tim 9                       0.0 1 0.0
 JUMP            -jump_tim 11                       0.0 1 0.0
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                              27.579698
+BINARY                               ELL1
+PB                       0.07933693886978 1 1.1552e-10
+A1                            0.111902506 1 1.513e-06
+TASC               58999.1078514090000000 1 1.12e-07
+EPS1                                  0.0
+EPS2                                  0.0

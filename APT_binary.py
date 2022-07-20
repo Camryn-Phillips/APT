@@ -1463,10 +1463,10 @@ def main_for_loop(
     # by indexing this list with its cluster number. The wallrus operator
     # is used for brevity.
     j = 0
-    cluster_to_JUMPs = [
-        f"JUMP{(j:=j+1)}" if i != starting_cluster else ""
-        for i in range(t.table["clusters"][-1] + 1)
-    ]
+    # cluster_to_JUMPs = [
+    #     f"JUMP{(j:=j+1)}" if i != starting_cluster else ""
+    #     for i in range(t.table["clusters"][-1] + 1)
+    # ]
     skip_mask = False
     bad_mjds = []
     # mask_with_closest will be everything not JUMPed, as well as the next clusters
@@ -1498,7 +1498,14 @@ def main_for_loop(
 
         mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
 
-        closest_cluster_JUMP = cluster_to_JUMPs[closest_cluster]
+        # print()
+        # print(f"cluster to jumps = {cluster_to_JUMPs}")
+        if closest_cluster < starting_cluster:
+            closest_cluster_JUMP = f"JUMP{closest_cluster + 1}"
+        else:
+            closest_cluster_JUMP = f"JUMP{closest_cluster}"
+
+        # cluster_to_JUMPs[closest_cluster]
         getattr(m, closest_cluster_JUMP).frozen = True
         getattr(m, closest_cluster_JUMP).value = 0
         getattr(m, closest_cluster_JUMP).uncertainty = 0
@@ -1854,6 +1861,7 @@ def main():
                         mjds_total,
                         maxiter_while,
                         time.monotonic(),
+                        solution_tree,
                     ),
                 )
             )
