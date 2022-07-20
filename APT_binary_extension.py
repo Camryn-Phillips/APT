@@ -33,6 +33,14 @@ file that will do the equivalent process. This also serves to prevent clutter in
 """
 
 
+def set_binary_pars_lim(m, args):
+    if args.binary_model.lower() == "ell1":
+        args.EPS1_lim = m.PB.value * 5
+        args.EPS2_lim = m.PB.value * 5
+
+    return args
+
+
 def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
     """
     Helper function for APT_binary.
@@ -54,8 +62,21 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
 
 
 def skeleton_tree_creator(blueprint):
+    """
+    This creates what the tree looks like, without any of the data attributes.
+
+    Parameters
+    ----------
+    blueprint : blueprint in the form [(parent, child) for node in tree]
+
+    Returns
+    -------
+    tree : treelib.Tree
+    """
     tree = treelib.Tree()
-    tree.create_node("1A", "1A")
+    tree.create_node("0A", "0A")
     for parent, child in blueprint:
+        while tree.contains(child):
+            child += child[-1]
         tree.create_node(child, child, parent=parent)
     return tree
