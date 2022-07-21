@@ -1,0 +1,58 @@
+# Created: 2022-06-28T11:21:40.792589
+# PINT_version: 0.8.8+175.gb8b04f5.dirty
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                                fake_1
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+START              56000.0000000929254977
+FINISH             56489.0564966304336458
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   77
+CHI2                    83.90761899399476
+RAJ                     17:04:30.24504478 1 0.01078456078698800981
+DECJ                    19:26:05.02001007 1 0.18042781912736813310
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  7.3536816018690401202 1 4.712024715951609714e-10
+F1              -1.0054078560352770217e-15 1 2.2352067768162429784e-17
+PEPOCH             56000.0000000000000000
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+DM1                                   0.0
+BINARY                               ELL1
+PB                  2.9278882675182028178 1 5.3026552872573999456e-05
+A1                   0.030444640383964074 1 0.0002505144852259978
+TASC               56253.0453183566766668 1 0.0039966381844871619322
+EPS1             0.0106406724920098998595 1 0.013751812479286159782
+EPS2             -0.015226113550838890536 1 0.015308293050051916331
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0
+JUMP            -tim_jump 1                       0.0 0 0.0
+JUMP            -tim_jump 2                       0.0 0 0.0
+JUMP            -tim_jump 3                       0.0 0 0.0
+JUMP            -tim_jump 4                       0.0 0 0.0
+JUMP            -tim_jump 5                       0.0 0 0.0
+JUMP            -tim_jump 6                       0.0 0 0.0
+JUMP            -tim_jump 7                       0.0 0 0.0
+JUMP            -tim_jump 8                       0.0 0 0.0
+JUMP            -tim_jump 9                       0.0 0 0.0
+JUMP            -tim_jump 10                       0.0 0 0.0
+JUMP            -tim_jump 11                       0.0 0 0.0
+JUMP            -tim_jump 12                       0.0 0 0.0
+JUMP            -tim_jump 13                       0.0 0 0.0
+JUMP            -tim_jump 14                       0.0 0 0.0
+JUMP            -tim_jump 15                       0.0 0 0.0
+JUMP            -tim_jump 16                       0.0 0 0.0
+JUMP            -tim_jump 17                       0.0 0 0.0
+JUMP            -tim_jump 18                       0.0 0 0.0
+JUMP            -tim_jump 19                       0.0 0 0.0
+JUMP            -tim_jump 20                       0.0 0 0.0
+JUMP            -tim_jump 21                       0.0 0 0.0
+JUMP            -tim_jump 22                       0.0 0 0.0
+JUMP            -tim_jump 23                       0.0 0 0.0
