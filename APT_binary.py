@@ -87,8 +87,7 @@ class CustomTree(treelib.Tree):
             )
 
         # hopefully 26 nodes per parent will be enough, incorporate 'AA', 'AB', ... otherwise
-        node_letters = list(string.ascii_uppercase)
-        node_name = f"d{depth}{node_letters.pop(0)}_w0_i{iteration}"
+        node_name = f"d{depth}_w0_i{iteration}"
         branch_node_creator(
             self,
             node_name,
@@ -109,7 +108,7 @@ class CustomTree(treelib.Tree):
             for i in [-1, 1]:
                 wrap_i = min_wrap_number_total + i
                 if chisq_wrap_reversed[wrap_i] < 2:
-                    node_name = f"d{depth}{node_letters.pop(0)}_w{wrap_i}_i{iteration}"
+                    node_name = f"d{depth}_w{wrap_i}_i{iteration}"
                     chisq_accepted[chisq_wrap_reversed[wrap_i]] = wrap_i
                     branches[chisq_wrap_reversed[wrap_i]] = node_name
                     increment_factor_list.append(i)
@@ -142,7 +141,7 @@ class CustomTree(treelib.Tree):
                 chisq_wrap[f_resids_chi2_reduced] = wrap
 
                 if f_resids_chi2_reduced < 2:
-                    node_name = f"d{depth}{node_letters.pop(0)}_w{wrap}_i{iteration}"
+                    node_name = f"d{depth}_w{wrap}_i{iteration}"
                     chisq_accepted[f_resids_chi2_reduced] = wrap
                     branches[f_resids_chi2_reduced] = node_name
                     branch_node_creator(self, node_name, wrap)
@@ -776,10 +775,12 @@ def do_Ftests(t, m, mask_with_closest, args):
         if args.F1_sign:
             if args.F1_sign == "+":
                 if m_plus_p.F1.value < 0:
-                    Ftests[1] = "F1"
+                    Ftests[1.0] = "F1"
+                    print(f"Disallowing negative F1! ({m_plus_p.F1.value})")
             elif args.F1_sign == "-":
                 if m_plus_p.F1.value > 0:
-                    Ftests[1] = "F1"
+                    Ftests[1.0] = "F1"
+                    print(f"Disallowing positive F1! ({m_plus_p.F1.value})")
             else:
                 Ftests[Ftest_F] = "F1"
         else:
@@ -801,7 +802,7 @@ def do_Ftests(t, m, mask_with_closest, args):
     Ftests_keys = [key for key in Ftests.keys() if type(key) != bool]
 
     # if no Ftests performed, continue on without change
-    if not bool(Ftests_keys):
+    if not Ftests_keys:
         if span > 100 * u.d:
             print("F0, RAJ, DECJ, and F1 have all been added")
 
@@ -1315,7 +1316,7 @@ def APTB_argument_parse(parser, argv):
         "--debug_mode",
         help="Whether to enter debug mode (t/f)",
         type=str,
-        default="f",
+        default="t",
     )
     parser.add_argument(
         "--depth_pursue",
@@ -1499,7 +1500,7 @@ def main_for_loop(
             break
     if args.prune_condition is None:
         args.prune_condition = 1 + chisq_start
-        print(f"args.prune_condition = {args.prune_condition}")
+    log.info(f"args.prune_condition = {args.prune_condition}")
 
     # the following list comprehension allows a JUMP number to be found
     # by indexing this list with its cluster number. The wallrus operator
@@ -1517,7 +1518,7 @@ def main_for_loop(
 
     # this starts the solution tree
 
-    current_parent_id = "0A"
+    current_parent_id = "Root"
     iteration = 0
     while True:
         # the main while True loop of the algorithm:
@@ -1591,7 +1592,7 @@ def main_for_loop(
             pulsar_name,
             args=args,
             folder=alg_saves_mask_Path,
-            iteration=f"prefit{iteration}",
+            iteration=f"prefit_d{solution_tree.depth(current_parent_id)}_i{iteration}_c{closest_cluster}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
         ):
@@ -1667,7 +1668,7 @@ def main_for_loop(
             pulsar_name,
             args=args,
             folder=alg_saves_mask_Path,
-            iteration=iteration,
+            iteration=f"prefit_d{solution_tree.depth(current_parent_id)}_i{iteration}_c{closest_cluster}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
         ):
@@ -1886,7 +1887,7 @@ def main():
             print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
             solution_tree = CustomTree(node_class=CustomNode)
-            solution_tree.create_node("0A", "0A", data=NodeData())
+            solution_tree.create_node("Root", "Root", data=NodeData())
             results.append(
                 p.apply_async(
                     main_for_loop,
@@ -1924,7 +1925,7 @@ def main():
         for mask_number, mask in enumerate(mask_list):
             starting_cluster = starting_cluster_list[mask_number]
             solution_tree = CustomTree(node_class=CustomNode)
-            solution_tree.create_node("0A", "0A", data=NodeData())
+            solution_tree.create_node("Root", "Root", data=NodeData())
             mask_start_time = time.monotonic()
             try:
                 result = main_for_loop(

@@ -49,7 +49,7 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
     if args.binary_model.lower() == "ell1":
         # want to add eps1 and eps2 at the same time
         if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
-            Ftest_F = APT_binary.Ftest_param(m, f, "EPS1&2", args)
+            Ftest_F, m_plus_p = APT_binary.Ftest_param(m, f, "EPS1&2", args)
             Ftests[Ftest_F] = "EPS1&2"
         # if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
         #     Ftest_F = APT_binary.Ftest_param(m, f, "EPS2", args)
@@ -74,7 +74,7 @@ def skeleton_tree_creator(blueprint):
     tree : treelib.Tree
     """
     tree = treelib.Tree()
-    tree.create_node("0A", "0A")
+    tree.create_node("Root", "Root")
     for parent, child in blueprint:
         # while tree.contains(child):
         #     child += child[-1]
