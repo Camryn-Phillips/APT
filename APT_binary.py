@@ -86,7 +86,7 @@ class CustomTree(treelib.Tree):
 
         # hopefully 26 nodes per parent will be enough, incorporate 'AA', 'AB', ... otherwise
         node_letters = list(string.ascii_uppercase)
-        node_name = f"{depth}{node_letters.pop(0)}"
+        node_name = f"d{depth}{node_letters.pop(0)}_w0_i{iteration}"
         branch_node_creator(
             self,
             node_name,
@@ -107,7 +107,7 @@ class CustomTree(treelib.Tree):
             for i in [-1, 1]:
                 wrap_i = min_wrap_number_total + i
                 if chisq_wrap_reversed[wrap_i] < 2:
-                    node_name = f"{depth}{node_letters.pop(0)}"
+                    node_name = f"d{depth}{node_letters.pop(0)}_w{wrap_i}_i{iteration}"
                     chisq_accepted[chisq_wrap_reversed[wrap_i]] = wrap_i
                     branches[chisq_wrap_reversed[wrap_i]] = node_name
                     increment_factor_list.append(i)
@@ -140,7 +140,7 @@ class CustomTree(treelib.Tree):
                 chisq_wrap[f_resids_chi2_reduced] = wrap
 
                 if f_resids_chi2_reduced < 2:
-                    node_name = f"{depth}{node_letters.pop(0)}"
+                    node_name = f"d{depth}{node_letters.pop(0)}_w{wrap}_i{iteration}"
                     chisq_accepted[f_resids_chi2_reduced] = wrap
                     branches[f_resids_chi2_reduced] = node_name
                     branch_node_creator(self, node_name, wrap)
@@ -946,8 +946,8 @@ def quadratic_phase_wrap_checker(
 
     # This likely means a new parameter needs to be added, in which case
     # the phase wrapper should be ran AFTER the F-test call:
-    if min_chisq > 2:
-        # if the chisq is still above 2, then prune this branch
+    if min_chisq > args.prune_condition:
+        # if the chisq is still above args.prune_condition (default = 2), then prune this branch
         if wrap_checker_iteration >= 2:
             print(
                 f"quadratic_phase_wrap_checker ran twice without any difference, pruning branch"
@@ -965,7 +965,7 @@ def quadratic_phase_wrap_checker(
         t = t_copy
         m = m_copy
         log.warning(
-            f"min_chisq = {min_chisq} > 2, attempting F-test, then rerunning quadratic_phase_wrap_checker (iteration = {iteration})"
+            f"min_chisq = {min_chisq} > {args.prune_condition}, attempting F-test, then rerunning quadratic_phase_wrap_checker (iteration = {iteration})"
         )
         m = do_Ftests(t, m, mask_with_closest, args)
         f = WLSFitter(t, m)
@@ -1298,9 +1298,25 @@ def APTB_argument_parse(parser, argv):
         type=str,
         default="f",
     )
+    parser.add_argument(
+        "--depth_pursue",
+        help="Past this tree depth, APTB will pursue the solution (no pruning) regardless of the chisq.\n"+
+        "This is helpful for solutions with a higher chisq than normal, and with only one path that went particularly far.",
+        type=int,
+        default=np.inf,
+    )
+    parser.add_argument(
+        "--prune_condition",
+        help="The reduced chisq above which to prune a branch.",
+        type=float,
+        default=2.0,
+    )
 
     args = parser.parse_args(argv)
     # interpret strings as booleans
+    if args.depth_pursue != np.inf:
+        raise NotImplementedError("depth_puruse")
+
     args.check_bad_points = args.check_bad_points.lower()[0] == "t"
     args.try_poly_extrap = args.try_poly_extrap.lower()[0] == "t"
     args.plot_poly_extrap = args.plot_poly_extrap.lower()[0] == "t"
@@ -1883,6 +1899,7 @@ def main():
             starting_cluster = starting_cluster_list[mask_number]
             solution_tree = CustomTree(node_class=CustomNode)
             solution_tree.create_node("0A", "0A", data=NodeData())
+            mask_start_time = time.monotonic()
             try:
                 result = main_for_loop(
                     parfile,
@@ -1896,7 +1913,7 @@ def main():
                     pulsar_name,
                     mjds_total,
                     maxiter_while,
-                    time.monotonic(),
+                    mask_start_time,
                     solution_tree,
                 )
                 if result == "success" and not args.all_solutions:
@@ -1918,6 +1935,9 @@ def main():
                     solution_tree.history
                 )
                 skeleton_tree.show()
+                print(f"tree depth = {skeleton_tree.depth()}")
+                mask_end_time = time.monotonic()
+                print(f"Mask time: {mask_end_time - mask_start_time} seconds, or {(mask_end_time - mask_start_time) / 60.0} minutes")
 
             # a successful run will prevent others from running if args.all_solutions is the default
     return "Completed"
