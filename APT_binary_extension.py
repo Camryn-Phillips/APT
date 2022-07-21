@@ -34,9 +34,11 @@ file that will do the equivalent process. This also serves to prevent clutter in
 
 
 def set_binary_pars_lim(m, args):
-    if args.binary_model.lower() == "ell1":
-        args.EPS1_lim = m.PB.value * 5
-        args.EPS2_lim = m.PB.value * 5
+    if args.binary_model.lower() == "ell1" and not args.EPS_lim:
+        if args.EPS_lim = "inf":
+            args.EPS_lim = np.inf
+        args.EPS_lim = m.PB.value * 5
+        args.EPS_lim = m.PB.value * 5
 
     return args
 
@@ -48,7 +50,7 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
 
     if args.binary_model.lower() == "ell1":
         # want to add eps1 and eps2 at the same time
-        if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
+        if "EPS1" not in f_params and span > args.EPS_lim * u.d:
             Ftest_F, m_plus_p = APT_binary.Ftest_param(m, f, "EPS1&2", args)
             Ftests[Ftest_F] = "EPS1&2"
         # if "EPS2" not in f_params and span > args.EPS2_lim * u.d:

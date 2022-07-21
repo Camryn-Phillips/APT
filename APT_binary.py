@@ -1150,6 +1150,12 @@ def APTB_argument_parse(parser, argv):
         default="-",
     )
     parser.add_argument(
+        "--EPS_lim",
+        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
         "--Ftest_lim",
         help="Upper limit for successful Ftest values",
         type=float,
@@ -1883,11 +1889,12 @@ def main():
         )
         p = Pool(len(mask_list))
         results = []
+        solution_trees=[]
         for mask_number, mask in enumerate(mask_list):
             print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
-            solution_tree = CustomTree(node_class=CustomNode)
-            solution_tree.create_node("Root", "Root", data=NodeData())
+            solution_trees.append(CustomTree(node_class=CustomNode))
+            solution_trees[-1].create_node("Root", "Root", data=NodeData())
             results.append(
                 p.apply_async(
                     main_for_loop,
@@ -1904,7 +1911,7 @@ def main():
                         mjds_total,
                         maxiter_while,
                         time.monotonic(),
-                        solution_tree,
+                        solution_trees[-1],
                     ),
                 )
             )
@@ -1920,6 +1927,16 @@ def main():
             except Exception as e:
                 print(e)
         print()
+        for solution_tree in solution_trees:
+            print(solution_tree.blueprint)
+            skeleton_tree = APT_binary_extension.skeleton_tree_creator(
+                solution_tree.blueprint
+            )
+            skeleton_tree.show()
+            skeleton_tree.save2file(
+                solution_tree.save_location / Path("solution_tree.tree")
+            )
+            print(f"tree depth = {skeleton_tree.depth()}")
 
     else:
         for mask_number, mask in enumerate(mask_list):

@@ -1,0 +1,50 @@
+# Created: 2022-07-21T16:07:26.857713
+# PINT_version: 0.8.8+358.g85a5b2d
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                    J1720-05_F1changed
+EPHEM                               DE421
+CLK                          TT(BIPM2021)
+UNITS                                 TDB
+START              58975.1393537481600926
+FINISH             59402.0101453626522685
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  750
+CHI2                                  0.0
+RAJ                     17:20:44.81791068 1 0.00028645591779249708
+DECJ                    -5:36:29.73309749 1 0.01638766309074543570
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                   306.0301629248118047 1 5.3437855035484603015e-10
+F1                              -1.26e-15 0 1e-15
+PEPOCH             58982.1327770000000000
+TZRMJD             58982.1348627173173611
+TZRSITE                                GB
+TZRFRQ                            870.194
+JUMP            -jump_tim 0                       0.0 0 0.0
+JUMP            -jump_tim 1                       0.0 0 0.0
+JUMP            -jump_tim 3                       0.0 0 0.0
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 7                       0.0 0 0.0
+JUMP            -jump_tim 8        1.6229899270203885 1 2.4188774733115473e-05
+JUMP            -jump_tim 9        1.9451361133251663 1 5.886604172543147e-05
+JUMP            -jump_tim 10        2.6156961577561195 1 4.2342771135819454e-05
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                              36.828786
+BINARY                               ELL1
+PB                 0.13169849025920490604 1 2.9743417435639467378e-09
+A1                    0.05958748556238566 1 2.7556093008573598e-06
+TASC               58975.1725571226209759 1 1.9005380617450916363e-06
+EPS1            -0.0007772659018109338636 1 8.6479423116780419246e-05
+EPS2            0.00039877789764170307692 1 4.8953067271717402333e-05

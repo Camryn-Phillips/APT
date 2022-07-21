@@ -1,4 +1,4 @@
-# Created: 2022-07-21T14:55:18.859123
+# Created: 2022-07-21T15:52:24.812202
 # PINT_version: 0.8.8+358.g85a5b2d
 # User: jdtaylor
 # Host: nimrod
@@ -24,6 +24,9 @@ PX                                    0.0
 F0                   306.0301843914414235 1 7.64521651e-08
 F1                              -1.26e-15 0 1e-15
 PEPOCH             58982.1327770000000000
+TZRMJD             58982.1348627173173611
+TZRSITE                                GB
+TZRFRQ                            870.194
 CORRECT_TROPOSPHERE                         N
 PLANET_SHAPIRO                          N
 SOLARN0                              10.0
@@ -35,9 +38,6 @@ A1                            0.059649955 1 5.16e-06
 TASC               58975.1724386480000000 1 3.79e-06
 EPS1                                  0.0
 EPS2                                  0.0
-TZRMJD             58982.1348627173173611
-TZRSITE                                GB
-TZRFRQ                            870.194
 JUMP		-jump_tim 0	0 1 0
 JUMP		-jump_tim 1	0 1 0
 JUMP		-jump_tim 3	0 1 0
