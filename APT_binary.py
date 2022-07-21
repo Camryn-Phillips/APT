@@ -1143,10 +1143,10 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--F1_sign",
-        help="require that F1 be either positive or negative (+/-), or no requirement (default)",
+        help="require that F1 be either positive or negative (+/-), or no requirement (None)",
         choices=["+", "-"],
         type=str,
-        default=None,
+        default="-",
     )
     parser.add_argument(
         "--Ftest_lim",
@@ -1335,6 +1335,8 @@ def APTB_argument_parse(parser, argv):
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
+    if args.F1_sign == "None":
+        args.F1_sign = None
 
     args.check_bad_points = args.check_bad_points.lower()[0] == "t"
     args.try_poly_extrap = args.try_poly_extrap.lower()[0] == "t"
