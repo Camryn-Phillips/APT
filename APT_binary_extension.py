@@ -76,7 +76,7 @@ def skeleton_tree_creator(blueprint):
     tree = treelib.Tree()
     tree.create_node("0A", "0A")
     for parent, child in blueprint:
-        while tree.contains(child):
-            child += child[-1]
+        # while tree.contains(child):
+        #     child += child[-1]
         tree.create_node(child, child, parent=parent)
     return tree

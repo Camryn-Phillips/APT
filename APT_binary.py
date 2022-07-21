@@ -40,13 +40,15 @@ class CustomTree(treelib.Tree):
         deep=False,
         node_class=None,
         identifier=None,
-        history=[],
+        blueprint=[],
+        save_location=Path.cwd(),
     ):
         super().__init__(tree, deep, node_class, identifier)
 
         # will store this in a list so that when a branch is pruned
         # I can reconstruct the skeleton of the tree later
-        self.history = history
+        self.blueprint = blueprint
+        self.save_location = save_location
 
     def branch_creator(
         self,
@@ -71,7 +73,7 @@ class CustomTree(treelib.Tree):
                 print(
                     f"Branch created: parent = {current_parent_id}, name = {node_name}"
                 )
-            self.history.append((current_parent_id, node_name))
+            self.blueprint.append((current_parent_id, node_name))
             self.create_node(
                 node_name,
                 node_name,
@@ -722,7 +724,7 @@ def Ftest_param(r_model, fitter, param_name, args):
 
     # print the Ftest for the parameter and return the value of the Ftest
     print("Ftest" + param_name + ":", Ftest_p)
-    return Ftest_p
+    return Ftest_p, f_plus_p.model
 
 
 def do_Ftests(t, m, mask_with_closest, args):
@@ -762,16 +764,26 @@ def do_Ftests(t, m, mask_with_closest, args):
 
     # if span is longer than minimum parameter span and parameter hasn't been added yet, do Ftest to see if parameter should be added
     if "RAJ" not in f_params and span > args.RAJ_lim * u.d:
-        Ftest_R = Ftest_param(m, f, "RAJ", args)
+        Ftest_R, m_plus_p = Ftest_param(m, f, "RAJ", args)
         Ftests[Ftest_R] = "RAJ"
 
     if "DECJ" not in f_params and span > args.DECJ_lim * u.d:
-        Ftest_D = Ftest_param(m, f, "DECJ", args)
+        Ftest_D, m_plus_p = Ftest_param(m, f, "DECJ", args)
         Ftests[Ftest_D] = "DECJ"
 
     if "F1" not in f_params and span > args.F1_lim * u.d:
-        Ftest_F = Ftest_param(m, f, "F1", args)
-        Ftests[Ftest_F] = "F1"
+        Ftest_F, m_plus_p = Ftest_param(m, f, "F1", args)
+        if args.F1_sign:
+            if args.F1_sign == "+":
+                if m_plus_p.F1.value < 0:
+                    Ftests[1] = "F1"
+            elif args.F1_sign == "-":
+                if m_plus_p.F1.value > 0:
+                    Ftests[1] = "F1"
+            else:
+                Ftests[Ftest_F] = "F1"
+        else:
+            Ftests[Ftest_F] = "F1"
 
     m, t, f, f_params, span, Ftests, args = APT_binary_extension.do_Ftests_binary(
         m, t, f, f_params, span, Ftests, args
@@ -1130,6 +1142,13 @@ def APTB_argument_parse(parser, argv):
         default=None,
     )
     parser.add_argument(
+        "--F1_sign",
+        help="require that F1 be either positive or negative (+/-), or no requirement (default)",
+        choices=["+", "-"],
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--Ftest_lim",
         help="Upper limit for successful Ftest values",
         type=float,
@@ -1300,8 +1319,8 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--depth_pursue",
-        help="Past this tree depth, APTB will pursue the solution (no pruning) regardless of the chisq.\n"+
-        "This is helpful for solutions with a higher chisq than normal, and with only one path that went particularly far.",
+        help="Past this tree depth, APTB will pursue the solution (no pruning) regardless of the chisq.\n"
+        + "This is helpful for solutions with a higher chisq than normal, and with only one path that went particularly far.",
         type=int,
         default=np.inf,
     )
@@ -1309,7 +1328,7 @@ def APTB_argument_parse(parser, argv):
         "--prune_condition",
         help="The reduced chisq above which to prune a branch.",
         type=float,
-        default=2.0,
+        default=None,
     )
 
     args = parser.parse_args(argv)
@@ -1365,6 +1384,8 @@ def main_for_loop(
     alg_saves_mask_Path = alg_saves_Path / mask_Path
     if not alg_saves_mask_Path.exists():
         alg_saves_mask_Path.mkdir()
+
+    solution_tree.save_location = alg_saves_mask_Path
 
     m = mb.get_model(parfile)
     m, t = JUMP_adder_begginning_cluster(
@@ -1474,6 +1495,9 @@ def main_for_loop(
 
         else:
             break
+    if args.prune_condition is None:
+        args.prune_condition = 1 + chisq_start
+        print(f"args.prune_condition = {args.prune_condition}")
 
     # the following list comprehension allows a JUMP number to be found
     # by indexing this list with its cluster number. The wallrus operator
@@ -1930,14 +1954,19 @@ def main():
                     + "moving onto the next cluster."
                 )
             finally:
-                print(solution_tree.history)
+                print(solution_tree.blueprint)
                 skeleton_tree = APT_binary_extension.skeleton_tree_creator(
-                    solution_tree.history
+                    solution_tree.blueprint
                 )
                 skeleton_tree.show()
+                skeleton_tree.save2file(
+                    solution_tree.save_location / Path("solution_tree.tree")
+                )
                 print(f"tree depth = {skeleton_tree.depth()}")
                 mask_end_time = time.monotonic()
-                print(f"Mask time: {mask_end_time - mask_start_time} seconds, or {(mask_end_time - mask_start_time) / 60.0} minutes")
+                print(
+                    f"Mask time: {round(mask_end_time - mask_start_time, 1)} seconds, or {round((mask_end_time - mask_start_time) / 60.0, 2)} minutes"
+                )
 
             # a successful run will prevent others from running if args.all_solutions is the default
     return "Completed"
@@ -1950,5 +1979,5 @@ if __name__ == "__main__":
     main()
     end_time = time.monotonic()
     print(
-        f"Final Runtime (including plots): {end_time - start_time} seconds, or {(end_time - start_time) / 60.0} minutes"
+        f"Final Runtime (including plots): {round(end_time - start_time, 1)} seconds, or {round((end_time - start_time) / 60.0, 2)} minutes"
     )
