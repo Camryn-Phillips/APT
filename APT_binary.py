@@ -65,6 +65,7 @@ class CustomTree(treelib.Tree):
         maxiter_while,
         current_parent_id,
         args,
+        unJUMPed_clusters,
     ):
         depth = self.depth(current_parent_id) + 1
         # this function only has meaning inside of branch_creator so it is defined here.
@@ -183,12 +184,10 @@ class CustomNode(treelib.Node):
 @dataclass
 class NodeData:
     m: pint.models.timing_model.TimingModel = None
-    t: pint.toa.TOAs = None
-    f: pint.fitter.Fitter = None
-    mask_with_closest: np.ndarray = None
+    unJUMPed_clusters: list = None
 
     def __iter__(self):
-        return iter((self.m, self.t, self.f, self.mask_with_closest))
+        return iter((self.m, self.unJUMPed_clusters))
 
 
 class tcolors:
@@ -539,6 +538,8 @@ def save_state(
     except ValueError as e:
         if str(e)[:47] != "Projected semi-major axis A1 cannot be negative":
             raise e
+        raise e
+        # TODO decide what to do if A1 is negative:
         response = input(
             f"\nA1 detected to be negative! Should APTB attempt to correct it? (y/n)"
         )
@@ -725,7 +726,7 @@ def Ftest_param(r_model, fitter, param_name, args):
     return Ftest_p, f_plus_p.model
 
 
-def do_Ftests(t, m, mask_with_closest, args):
+def do_Ftests(f, mask_with_closest, args):
     """
     Does the Ftest on the neccesarry parameters
 
@@ -741,8 +742,8 @@ def do_Ftests(t, m, mask_with_closest, args):
     """
 
     # fit toas with new model
-    f = pint.fitter.WLSFitter(t, m)
-    f.fit_toas()
+    t = f.toas
+    m = f.model
 
     t_copy = deepcopy(t)
     t_copy.select(mask_with_closest)
@@ -863,6 +864,7 @@ def quadratic_phase_wrap_checker(
     args,
     solution_tree,
     current_parent_id,
+    unJUMPed_clusters,
     folder=None,
     wrap_checker_iteration=1,
     iteration=1,
@@ -1016,6 +1018,7 @@ def quadratic_phase_wrap_checker(
             args,
             solution_tree,
             current_parent_id,
+            unJUMPed_clusters,
             folder,
             wrap_checker_iteration + 1,
             iteration,
@@ -1072,6 +1075,7 @@ def quadratic_phase_wrap_checker(
             maxiter_while,
             current_parent_id,
             args,
+            unJUMPed_clusters,
         )
         return None, None
     else:
@@ -1144,7 +1148,7 @@ def APTB_argument_parse(parser, argv):
     parser.add_argument(
         "--F1_sign",
         help="require that F1 be either positive or negative (+/-), or no requirement (None)",
-        choices=["+", "-"],
+        choices=["+", "-", "None"],
         type=str,
         default="-",
     )
@@ -1415,6 +1419,9 @@ def main_for_loop(
     # a copy, with the flags included
     base_toas = deepcopy(t)
 
+    # this should be one of the few instantiations of f (the 'global' f)
+    f = WLSFitter(t, m)
+
     # the following before the bigger while loop is the very first fit with only one cluster not JUMPed.
     # ideally, the following only runs once
     start_iter = 0
@@ -1453,7 +1460,8 @@ def main_for_loop(
             return "continue"
 
         print("Fitting...")
-        f = WLSFitter(t, m)
+        ####f = WLSFitter(t, m)
+        ## f.model = m
         print("BEFORE:", f.get_fitparams())
         # changing maxiter here may have some effects
         print(f.fit_toas(maxiter=2))
@@ -1469,11 +1477,11 @@ def main_for_loop(
         t.compute_pulse_numbers(f.model)
 
         # update the model
-        m = f.model
+        ########## m = f.model
 
         if not save_state(
             f,
-            m,
+            f.model,
             t,
             mjds_total,
             pulsar_name,
@@ -1485,7 +1493,8 @@ def main_for_loop(
             return "continue"
 
         # something is certaintly wrong if the reduced chisq is greater that 3 at this stage
-        chisq_start = pint.residuals.Residuals(t, m).chi2_reduced
+        chisq_start = f.resids.chi2_reduced
+        # pint.residuals.Residuals(t, m).chi2_reduced
         log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
         if chisq_start > 3:
             log.warning(
@@ -1518,8 +1527,9 @@ def main_for_loop(
     skip_mask = False
     bad_mjds = []
     # mask_with_closest will be everything not JUMPed, as well as the next clusters
-    # to be de JUMPed
+    # to be unJUMPed
     mask_with_closest = deepcopy(mask)
+    unJUMPed_clusters = [starting_cluster]
 
     # this starts the solution tree
 
@@ -1545,6 +1555,7 @@ def main_for_loop(
         # do slopes match from next few clusters, or does a quadratic/cubic fit
 
         mask_with_closest = np.logical_or(mask_with_closest, closest_cluster_mask)
+        unJUMPed_clusters.append(closest_cluster)
 
         # print()
         # print(f"cluster to jumps = {cluster_to_JUMPs}")
@@ -1554,9 +1565,9 @@ def main_for_loop(
             closest_cluster_JUMP = f"JUMP{closest_cluster}"
 
         # cluster_to_JUMPs[closest_cluster]
-        getattr(m, closest_cluster_JUMP).frozen = True
-        getattr(m, closest_cluster_JUMP).value = 0
-        getattr(m, closest_cluster_JUMP).uncertainty = 0
+        getattr(f.model, closest_cluster_JUMP).frozen = True
+        getattr(f.model, closest_cluster_JUMP).value = 0
+        getattr(f.model, closest_cluster_JUMP).uncertainty = 0
         # seeing if removing the value of every JUMP helps
         # for JUMP in cluster_to_JUMPs:
         #     if JUMP and not getattr(m, JUMP).frozen:
@@ -1564,8 +1575,8 @@ def main_for_loop(
         #         getattr(m, JUMP).uncertainty = 0
 
         t.table["delta_pulse_number"] = 0
-        t.compute_pulse_numbers(m)
-        residuals = pint.residuals.Residuals(t, m).calc_phase_resids()
+        t.compute_pulse_numbers(f.model)
+        residuals = pint.residuals.Residuals(t, f.model).calc_phase_resids()
 
         # save_state(
         #     f,
@@ -1581,7 +1592,7 @@ def main_for_loop(
 
         phase_connector(
             t,
-            m,
+            f.model,
             "np.unwrap",
             cluster="all",
             mjds_total=mjds_total,
@@ -1591,7 +1602,7 @@ def main_for_loop(
         )
         if not save_state(
             f,
-            m,
+            f.model,
             t,
             mjds_total,
             pulsar_name,
@@ -1604,7 +1615,7 @@ def main_for_loop(
             skip_mask = True
             break
 
-        f = pint.fitter.WLSFitter(t, m)
+        ########f = pint.fitter.WLSFitter(t, m)
         if args.check_phase_wraps:
             f, t = quadratic_phase_wrap_checker(
                 m,
@@ -1620,6 +1631,7 @@ def main_for_loop(
                 folder=alg_saves_mask_Path,
                 iteration=iteration,
                 pulsar_name=pulsar_name,
+                unJUMPed_clusters=unJUMPed_clusters,
             )
         # select the relevant information to be used based on the deepest node,
         # ties being determined by parent.order
@@ -1645,7 +1657,6 @@ def main_for_loop(
         f.fit_toas(maxiter=maxiter_while)
         t.table["delta_pulse_number"] = 0
         t.compute_pulse_numbers(f.model)
-        m = f.model
 
         # use random models, or design matrix method to determine if next
         # cluster is within the error space. If the next cluster is not
@@ -1656,24 +1667,25 @@ def main_for_loop(
         # TODO add check_bad_points here-ish
 
         # use the F-test to determine if another parameter should be fit
-        m = do_Ftests(t, m, mask_with_closest, args)
+        f.model = do_Ftests(f, mask_with_closest, args)
 
         # fit
-        f = WLSFitter(t, m)
+        #########f = WLSFitter(t, m)
+        #########f.model = m
         f.fit_toas(maxiter=maxiter_while)
         print(f"reduced chisq at botttom of while loop is {f.resids.chi2_reduced}")
 
-        m = f.model
+        #######m = f.model
 
         if not save_state(
             f,
-            m,
+            f.model,
             t,
             mjds_total,
             pulsar_name,
             args=args,
             folder=alg_saves_mask_Path,
-            iteration=f"prefit_d{solution_tree.depth(current_parent_id)}_i{iteration}_c{closest_cluster}",
+            iteration=f"d{solution_tree.depth(current_parent_id)}_i{iteration}_c{closest_cluster}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
         ):
@@ -1682,6 +1694,9 @@ def main_for_loop(
 
         # repeat while True loop
 
+    # fit again with maxiter=4 for good measure
+    f.fit_toas(maxiter=4)
+    m = f.model
     # if skip_mask was set to true in the while loop, then move onto the next mask
     if skip_mask:
         return "continue"
@@ -1697,7 +1712,8 @@ def main_for_loop(
         getattr(m_plus, "EPS2").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
-    f_plus.fit_toas(maxiter=maxiter_while)
+    # if this is truly the correct solution, fitting up to 4 times should be fine
+    f_plus.fit_toas(maxiter=4)
 
     # residuals
     r = pint.residuals.Residuals(t, f.model)
@@ -1888,7 +1904,7 @@ def main():
         )
         p = Pool(len(mask_list))
         results = []
-        solution_trees=[]
+        solution_trees = []
         for mask_number, mask in enumerate(mask_list):
             print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
