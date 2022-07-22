@@ -37,8 +37,9 @@ def set_binary_pars_lim(m, args):
     if args.binary_model.lower() == "ell1" and not args.EPS_lim:
         if args.EPS_lim == "inf":
             args.EPS_lim = np.inf
-        args.EPS_lim = m.PB.value * 5
-        args.EPS_lim = m.PB.value * 5
+        else:
+            args.EPS_lim = m.PB.value * 5
+            args.EPS_lim = m.PB.value * 5
 
     return args
 
