@@ -1,9 +1,9 @@
 FORMAT 1
-C Created: 2022-07-21T15:54:59.035499
-C PINT_version: 0.8.8+358.g85a5b2d
-C User: jdtaylor
-C Host: nimrod
-C OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+C Created: 2022-07-21T16:38:31.273158
+C PINT_version: 0.8.8+418.ga8daf805
+C User: jackson
+C Host: Jacksons-MacBook-Pro.local
+C OS: macOS-10.16-x86_64-i386-64bit
 VEGAS_J1720-05_58977_108 870.194000 58977.1252226689931945 17.250 gbt  -format Parkes -jump_tim 1 -pn -132466215.0
 VEGAS_J1720-05_58977_108 770.194000 58977.1252226719937963 14.660 gbt  -format Parkes -jump_tim 1 -pn -132466232.0
 VEGAS_J1720-05_58977_108 870.194000 58977.1254577889204051 18.260 gbt  -format Parkes -jump_tim 1 -pn -132459998.0

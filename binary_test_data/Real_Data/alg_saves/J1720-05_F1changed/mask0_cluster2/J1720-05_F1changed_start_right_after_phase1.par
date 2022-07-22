@@ -1,8 +1,8 @@
-# Created: 2022-07-21T15:52:26.359819
-# PINT_version: 0.8.8+358.g85a5b2d
-# User: jdtaylor
-# Host: nimrod
-# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Created: 2022-07-21T16:37:06.701174
+# PINT_version: 0.8.8+418.ga8daf805
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
 # Format: pint
 PSR                    J1720-05_F1changed
 EPHEM                               DE430
@@ -24,6 +24,17 @@ PX                                    0.0
 F0                   306.0301843914414235 1 7.64521651e-08
 F1                              -1.26e-15 0 1e-15
 PEPOCH             58982.1327770000000000
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                              36.828786
+BINARY                               ELL1
+PB                       0.13169885269966 1 6.415713e-08
+A1                            0.059649955 1 5.16e-06
+TASC               58975.1724386480000000 1 3.79e-06
+EPS1                                  0.0
+EPS2                                  0.0
 TZRMJD             58982.1348627173173611
 TZRSITE                                GB
 TZRFRQ                            870.194
@@ -37,14 +48,3 @@ JUMP            -jump_tim 7                       0.0 1 0.0
 JUMP            -jump_tim 8                       0.0 1 0.0
 JUMP            -jump_tim 9                       0.0 1 0.0
 JUMP            -jump_tim 10                       0.0 1 0.0
-CORRECT_TROPOSPHERE                         N
-PLANET_SHAPIRO                          N
-SOLARN0                              10.0
-SWM                                   0.0
-DM                              36.828786
-BINARY                               ELL1
-PB                       0.13169885269966 1 6.415713e-08
-A1                            0.059649955 1 5.16e-06
-TASC               58975.1724386480000000 1 3.79e-06
-EPS1                                  0.0
-EPS2                                  0.0
