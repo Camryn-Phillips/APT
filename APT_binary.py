@@ -86,8 +86,7 @@ class CustomTree(treelib.Tree):
                 ),
             )
 
-        # hopefully 26 nodes per parent will be enough, incorporate 'AA', 'AB', ... otherwise
-        node_name = f"d{depth}_w0_i{iteration}"
+        node_name = f"d{depth}_w{min_wrap_number_total}_i{iteration}"
         branch_node_creator(
             self,
             node_name,
@@ -1029,34 +1028,34 @@ def quadratic_phase_wrap_checker(
         f"Attemping a phase wrap of {min_wrap_number_total} on closest cluster (cluster {closest_cluster}).\n"
         + f"\tMin reduced chisq = {min_chisq}"
     )
-    if min_wrap_number_total != 0:
+    # if min_wrap_number_total != 0:
 
-        log.info("Phase wrap not equal to 0.")
-        print("#" * 100)
-        print(f"Phase wrap not equal to 0.")
-        print("#" * 100)
-        chisq_wrap_notzero = {}
-        for wrap in range(min_wrap_number_total - 10, min_wrap_number_total + 11):
-            # print(wrap)
-            t.table["delta_pulse_number"][closest_cluster_mask] = wrap
-            f.fit_toas(maxiter=maxiter_while)
+    #     log.info("Phase wrap not equal to 0.")
+    #     print("#" * 100)
+    #     print(f"Phase wrap not equal to 0.")
+    #     print("#" * 100)
+    #     chisq_wrap_notzero = {}
+    #     for wrap in range(min_wrap_number_total - 10, min_wrap_number_total + 11):
+    #         # print(wrap)
+    #         t.table["delta_pulse_number"][closest_cluster_mask] = wrap
+    #         f.fit_toas(maxiter=maxiter_while)
 
-            # t_plus_minus["delta_pulse_number"] = 0
-            # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
+    #         # t_plus_minus["delta_pulse_number"] = 0
+    #         # t_plus_minus.compute_pulse_numbers(f_plus_minus.model)
 
-            chisq_wrap_notzero[wrap] = f.resids.chi2_reduced
-            f.reset_model()
-        print(chisq_wrap_notzero)
-        x = chisq_wrap_notzero.keys()
-        y = [chisq_wrap_notzero[key] for key in chisq_wrap_notzero.keys()]
-        fig, ax = plt.subplots()
-        ax.plot(x, y, "o")
-        ax.set_title(f"Jumping cluster {closest_cluster}")
-        ax.set_ylabel("reduced chisq")
-        ax.set_xlabel("wraps")
-        # plt.show()
-        fig.savefig(folder / Path(f"Jumping cluster {closest_cluster}.png"))
-        plt.close()
+    #         chisq_wrap_notzero[wrap] = f.resids.chi2_reduced
+    #         f.reset_model()
+    #     print(chisq_wrap_notzero)
+    #     x = chisq_wrap_notzero.keys()
+    #     y = [chisq_wrap_notzero[key] for key in chisq_wrap_notzero.keys()]
+    #     fig, ax = plt.subplots()
+    #     ax.plot(x, y, "o")
+    #     ax.set_title(f"Jumping cluster {closest_cluster}")
+    #     ax.set_ylabel("reduced chisq")
+    #     ax.set_xlabel("wraps")
+    #     # plt.show()
+    #     fig.savefig(folder / Path(f"Jumping cluster {closest_cluster}.png"))
+    #     plt.close()
 
     if args.branches:
         solution_tree.branch_creator(
