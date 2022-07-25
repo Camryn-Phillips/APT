@@ -772,15 +772,18 @@ def do_Ftests(t, m, mask_with_closest, args):
     if "F1" not in f_params and span > args.F1_lim * u.d:
         Ftest_F, m_plus_p = Ftest_param(m, f, "F1", args)
         if args.F1_sign:
+            allow_F1 = True
             if args.F1_sign == "+":
                 if m_plus_p.F1.value < 0:
                     Ftests[1.0] = "F1"
                     print(f"Disallowing negative F1! ({m_plus_p.F1.value})")
+                    allow_F1 = False
             elif args.F1_sign == "-":
                 if m_plus_p.F1.value > 0:
                     Ftests[1.0] = "F1"
                     print(f"Disallowing positive F1! ({m_plus_p.F1.value})")
-            else:
+                    allow_F1 = False
+            if allow_F1:
                 Ftests[Ftest_F] = "F1"
         else:
             Ftests[Ftest_F] = "F1"
@@ -1888,7 +1891,7 @@ def main():
         )
         p = Pool(len(mask_list))
         results = []
-        solution_trees=[]
+        solution_trees = []
         for mask_number, mask in enumerate(mask_list):
             print(f"mask_number = {mask_number}")
             starting_cluster = starting_cluster_list[mask_number]
