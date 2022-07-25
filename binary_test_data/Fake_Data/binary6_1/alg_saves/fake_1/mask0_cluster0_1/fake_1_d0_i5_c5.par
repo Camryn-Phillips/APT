@@ -1,4 +1,4 @@
-# Created: 2022-07-25T14:20:52.069062
+# Created: 2022-07-25T14:20:51.577984
 # PINT_version: 0.8.8+418.ga8daf805
 # User: jackson
 # Host: Jacksons-MacBook-Pro.local
@@ -29,7 +29,7 @@ JUMP            -jump_tim 2                       0.0 0 0.0
 JUMP            -jump_tim 3                       0.0 0 0.0
 JUMP            -jump_tim 4                       0.0 0 0.0
 JUMP            -jump_tim 5                       0.0 0 0.0
-JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 6         2.796501200318885 1 0.0023760169780001907
 JUMP            -jump_tim 7        3.7649876021110864 1 0.004853382024694273
 JUMP            -jump_tim 8         7.152804352121945 1 0.016489480187169614
 JUMP            -jump_tim 9         16.36048502693894 1 0.059700715315611635

@@ -1,4 +1,4 @@
-# Created: 2022-07-25T14:20:39.569884
+# Created: 2022-07-25T14:20:39.078555
 # PINT_version: 0.8.8+418.ga8daf805
 # User: jackson
 # Host: Jacksons-MacBook-Pro.local
@@ -27,7 +27,7 @@ TZRFRQ                             1400.0
 JUMP            -jump_tim 1                       0.0 0 0.0
 JUMP            -jump_tim 2                       0.0 0 0.0
 JUMP            -jump_tim 3                       0.0 0 0.0
-JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 4        0.6805702940048709 1 0.002110155838298749
 JUMP            -jump_tim 5        1.6206937298047803 1 0.003606151373215543
 JUMP            -jump_tim 6        2.4152088958862215 1 0.0059300189736022045
 JUMP            -jump_tim 7        3.0768543622964195 1 0.006192926107344993

@@ -1,4 +1,4 @@
-# Created: 2022-07-22T16:45:22.082622
+# Created: 2022-07-25T14:20:27.438250
 # PINT_version: 0.8.8+418.ga8daf805
 # User: jackson
 # Host: Jacksons-MacBook-Pro.local
@@ -17,14 +17,6 @@ PX                                    0.0
 F0                      7.353693368448037 1 1e-06
 F1                                    0.0 0 0.0
 PEPOCH             56000.0000000000000000
-PLANET_SHAPIRO                          N
-DM                                    0.0 0 0.0
-BINARY                               ELL1
-PB                     2.9293847685997627 1 0.1
-A1                   0.030438545804327873 1 0.1
-TASC               56253.2036417999040000 1 0.1
-EPS1                                  0.0 0 0.0
-EPS2                                  0.0 0 0.0
 TZRMJD             56000.0000000000000000
 TZRSITE                               GBT
 TZRFRQ                             1400.0
@@ -51,3 +43,11 @@ JUMP            -jump_tim 20                       0.0 1 0.0
 JUMP            -jump_tim 21                       0.0 1 0.0
 JUMP            -jump_tim 22                       0.0 1 0.0
 JUMP            -jump_tim 23                       0.0 1 0.0
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+BINARY                               ELL1
+PB                     2.9293847685997627 1 0.1
+A1                   0.030438545804327873 1 0.1
+TASC               56253.2036417999040000 1 0.1
+EPS1                                  0.0 0 0.0
+EPS2                                  0.0 0 0.0
