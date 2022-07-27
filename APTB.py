@@ -146,7 +146,7 @@ class CustomTree(treelib.Tree):
             increment_factor_list = []
             for i in [-1, 1]:
                 wrap_i = min_wrap_number_total + i
-                if chisq_wrap_reversed[wrap_i] < 2:
+                if chisq_wrap_reversed[wrap_i] < args.prune_condition:
                     node_name = f"d{depth}_w{wrap_i}_i{iteration}"
                     if branch_node_creator(
                         self,
@@ -178,7 +178,7 @@ class CustomTree(treelib.Tree):
                 chisq_wrap[f_resids_chi2_reduced] = wrap
                 f.model = deepcopy(m_copy)
 
-                if f_resids_chi2_reduced < 2:
+                if f_resids_chi2_reduced < args.prune_condition:
                     node_name = f"d{depth}_w{wrap}_i{iteration}"
                     if branch_node_creator(self, node_name, wrap):
                         chisq_accepted[f_resids_chi2_reduced] = wrap
@@ -1479,6 +1479,9 @@ def APTB_argument_parse(parser, argv):
     )
 
     args = parser.parse_args(argv)
+
+    if args.branches and not args.check_phase_wraps:
+        raise argparse.ArgumentTypeError("Branches only works if phase wraps are being checked.")
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
