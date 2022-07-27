@@ -1,8 +1,8 @@
-# Created: 2022-07-21T13:56:39.354982
-# PINT_version: 0.8.8+358.g85a5b2d
-# User: jdtaylor
-# Host: nimrod
-# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Created: 2022-07-27T12:56:48.730313
+# PINT_version: 0.8.8+418.ga8daf805
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
 # Format: pint
 PSR                              J1720-05
 EPHEM                               DE430

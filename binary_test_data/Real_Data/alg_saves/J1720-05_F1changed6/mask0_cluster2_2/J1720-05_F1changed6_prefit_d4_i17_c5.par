@@ -1,0 +1,50 @@
+# Created: 2022-07-26T17:38:41.726053
+# PINT_version: 0.8.8+418.ga8daf805
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSR                   J1720-05_F1changed6
+EPHEM                               DE421
+CLK                          TT(BIPM2021)
+UNITS                                 TDB
+START              58975.1393537481600926
+FINISH             59402.0101453626522685
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  750
+CHI2                                  0.0
+RAJ                     17:20:40.19011770 1 0.01202848842142459525
+DECJ                    -5:35:59.74183114 1 0.09994443856605683685
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                    306.030183973375184 1 2.5097675442112919631e-08
+F1                              -6.26e-15 0 1e-15
+PEPOCH             58982.1327770000000000
+TZRMJD             58982.1348627173173611
+TZRSITE                                GB
+TZRFRQ                            870.194
+JUMP            -jump_tim 0                       0.0 0 0.0
+JUMP            -jump_tim 1                       0.0 0 0.0
+JUMP            -jump_tim 3                       0.0 0 0.0
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6        0.3659964502178654 1 0.00037806677323664706
+JUMP            -jump_tim 7       0.18122594045563226 1 0.0011959608282238704
+JUMP            -jump_tim 8      -0.08409134985893127 1 0.0021766816937187636
+JUMP            -jump_tim 9      -0.08336687888968995 1 0.002541541573373358
+JUMP            -jump_tim 10       0.27503215584509294 1 0.002567314254872152
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                              36.828786
+BINARY                               ELL1
+PB                 0.13169848993862357627 1 3.2770604890428430135e-09
+A1                   0.059569135044399674 1 5.842754721846877e-06
+TASC               58975.1725021617306339 1 2.2626304568959750322e-06
+EPS1            -0.00082706098602318315414 1 0.00010277569657640287296
+EPS2             0.0005612544969200145689 1 6.416696540469280115e-05

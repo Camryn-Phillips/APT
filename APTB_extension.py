@@ -26,7 +26,7 @@ import treelib
 
 
 """
-The intention of this file is to store functions to make adding additional binary models to APT_binary
+The intention of this file is to store functions to make adding additional binary models to APTB
 seamless and standardized. For example, APTB will, instead of checking for the type of binary model 
 and its features (like not fitting for EPS1 and EPS2 immediately), APTB will call a function from this
 file that will do the equivalent process. This also serves to prevent clutter in APTB.
@@ -46,16 +46,16 @@ def set_binary_pars_lim(m, args):
 
 def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
     """
-    Helper function for APT_binary.
+    Helper function for APTB.
     """
 
     if args.binary_model.lower() == "ell1":
         # want to add eps1 and eps2 at the same time
         if "EPS1" not in f_params and span > args.EPS_lim * u.d:
-            Ftest_F, m_plus_p = APT_binary.Ftest_param(m, f, "EPS1&2", args)
+            Ftest_F, m_plus_p = APTB.Ftest_param(m, f, "EPS1&2", args)
             Ftests[Ftest_F] = "EPS1&2"
         # if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
-        #     Ftest_F = APT_binary.Ftest_param(m, f, "EPS2", args)
+        #     Ftest_F = APTB.Ftest_param(m, f, "EPS2", args)
         #     Ftests[Ftest_F] = "EPS2"
 
     elif args.binary_model.lower() == "other models":

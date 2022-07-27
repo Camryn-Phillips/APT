@@ -1,0 +1,31 @@
+# Created: 2022-07-27T11:40:49.414160
+# PINT_version: 0.8.8+418.ga8daf805
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSRJ                           J2319+6411
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+UNITS                                 TDB
+START              59240.9513903766719907
+FINISH             59764.5194354824447339
+RM                                  -48.8 0 1.2
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  174
+CHI2                   119.44027010232311
+RAJ                     23:19:35.20515949 1 0.00326324395503433014
+DECJ                    64:11:25.75404837 1 0.01854664416503502486
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                   4.629237956304404244 1 6.8133059181159606424e-10
+F1              -3.5104386228633427125e-15 1 2.304600002625280992e-18
+PEPOCH             56100.0000000000000000
+PLANET_SHAPIRO                          N
+DM                                  246.1 0 0.06
+DM1                                   0.0
+TZRMJD             59181.1162176666257402
+TZRSITE                               ssb
+TZRFRQ                                inf

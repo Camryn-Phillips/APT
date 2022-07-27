@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -W ignore::FutureWarning -W ignore::UserWarning -W ignore:DeprecationWarning
-import argparse
 import pint.toa
 import pint.models
 import pint.fitter
@@ -16,9 +15,8 @@ from astropy import log
 import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
 import os
-import csv
-import operator
 import time
 from pathlib import Path
 import socket
@@ -27,13 +25,13 @@ import APTB_extension
 from loguru import logger as log
 import treelib
 from dataclasses import dataclass
-import string
 import colorama
 
 
 class CustomTree(treelib.Tree):
     """
-    Allows for additional functions
+    A treelib.Tree function with additional methods and attributes.
+
     """
 
     def __init__(
@@ -56,7 +54,7 @@ class CustomTree(treelib.Tree):
         self,
         f,
         m_wrap_dict,
-        min_wrap,
+        min_wrap_vertex,
         iteration,
         chisq_wrap,
         min_wrap_number_total,
@@ -66,57 +64,99 @@ class CustomTree(treelib.Tree):
         args,
         unJUMPed_clusters,
     ):
+        """
+        Explores neighboring phase wraps and produced branches on those that give an acceptable reduced chisq.
+
+        Parameters
+        ----------
+        f : fitter
+        m_wrap_dict : dictionary with the format {wrap: model}
+        min_wrap_vertex : the vertex of the parabola defined by the sampling points
+        iteration : the global iteration
+        chisq_wrap : dictionary with the format {reduced chisq: wrap}
+        min_wrap_number_total : the wrap number predicted by quad_phase_wrap_checker
+        mask_with_closest : the mask of every unJUMPed cluster
+        closest_cluster_mask : the mask of the most recently unJUMPed cluster
+        maxiter_while : the maxiter for f.fit_toas
+        args : command line arguments
+        unJUMPed_clusters : an array of the number every unJUMPed cluster
+        """
         current_parent_id = self.current_parent_id
         depth = self.depth(current_parent_id) + 1
         m_copy = deepcopy(f.model)
         t = f.toas
-        # this function only has meaning inside of branch_creator so it is defined here.
-        def branch_node_creator(self, node_name, number):
+
+        def branch_node_creator(self, node_name: str, number: int):
+            """
+            More or less a wrapper function of tree.create_node. Only has meaning in branch_creator.
+
+            Parameters
+            ----------
+            node_name : str
+                name of node to be created
+            number : int
+                wrap_number
+
+            Returns
+            -------
+            bool
+                validator result
+            """
+
             if args.debug_mode:
                 print(
-                    f"Branch created: parent = {current_parent_id}, name = {node_name}"
+                    f"{colorama.Fore.GREEN}Branch created: parent = {current_parent_id}, name = {node_name}{colorama.Style.RESET_ALL}"
                 )
             self.blueprint.append((current_parent_id, node_name))
-            self.create_node(
-                node_name,
-                node_name,
-                parent=current_parent_id,
-                data=NodeData(
-                    m_wrap_dict[number],
-                    deepcopy(unJUMPed_clusters),
-                ),
-            )
+            data = NodeData(m_wrap_dict[number], deepcopy(unJUMPed_clusters))
+            if data.validator(args):
+                self.create_node(
+                    node_name,
+                    node_name,
+                    parent=current_parent_id,
+                    data=data,
+                )
+                return True
+            elif args.debug_mode:
+                # the branch was never really created to begin with
+                print(
+                    f"{colorama.Fore.RED}Validation failed, branch creation stopped: parent = {current_parent_id}, name = {node_name}{colorama.Style.RESET_ALL}"
+                )
 
         node_name = f"d{depth}_w{min_wrap_number_total}_i{iteration}"
-        branch_node_creator(
+        chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
+        if branch_node_creator(
             self,
             node_name,
             min_wrap_number_total,
-        )
-        chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
-        chisq_accepted = {
-            chisq_wrap_reversed[min_wrap_number_total]: min_wrap_number_total
-        }
-        branches = {chisq_wrap_reversed[min_wrap_number_total]: node_name}
+        ):
+            chisq_accepted = {
+                chisq_wrap_reversed[min_wrap_number_total]: min_wrap_number_total
+            }
+            branches = {chisq_wrap_reversed[min_wrap_number_total]: node_name}
+        else:
+            chisq_accepted = {}
+            branches = {}
 
         # if min_wrap_number_total is also the wrap predicted by the vertex, then its
         # immediate neighbors have already been calculated. Thus, this can save a little
         # bit of time, especially if its immediate neighbors already preclude
         # the need for any branches
-        if min_wrap == min_wrap_number_total:
+        if min_wrap_vertex == min_wrap_number_total:
             increment_factor_list = []
             for i in [-1, 1]:
                 wrap_i = min_wrap_number_total + i
                 if chisq_wrap_reversed[wrap_i] < 2:
                     node_name = f"d{depth}_w{wrap_i}_i{iteration}"
-                    chisq_accepted[chisq_wrap_reversed[wrap_i]] = wrap_i
-                    branches[chisq_wrap_reversed[wrap_i]] = node_name
-                    increment_factor_list.append(i)
-                    branch_node_creator(
+                    if branch_node_creator(
                         self,
                         node_name,
                         wrap_i,
-                    )
+                    ):
+                        chisq_accepted[chisq_wrap_reversed[wrap_i]] = wrap_i
+                        branches[chisq_wrap_reversed[wrap_i]] = node_name
+                        increment_factor_list.append(i)
+
             increment = 2
         else:
             increment_factor_list = [-1, 1]
@@ -140,9 +180,9 @@ class CustomTree(treelib.Tree):
 
                 if f_resids_chi2_reduced < 2:
                     node_name = f"d{depth}_w{wrap}_i{iteration}"
-                    chisq_accepted[f_resids_chi2_reduced] = wrap
-                    branches[f_resids_chi2_reduced] = node_name
-                    branch_node_creator(self, node_name, wrap)
+                    if branch_node_creator(self, node_name, wrap):
+                        chisq_accepted[f_resids_chi2_reduced] = wrap
+                        branches[f_resids_chi2_reduced] = node_name
                 else:
                     increment_factor_list.remove(increment_factor)
                     # print("removed")
@@ -162,6 +202,19 @@ class CustomTree(treelib.Tree):
         self[current_parent_id].order = order
 
     def node_selector(self, f, args):
+        """
+        Selects the next branch to take based on the order instance of the parent. Also prunes dead branches.
+
+        Parameters
+        ----------
+        f : fitter
+        args : command line arguments
+
+        Returns
+        -------
+        m, unJUMPed_clusters
+            These are for the selected branch
+        """
         current_parent_id = self.current_parent_id
         current_parent_node = self[current_parent_id]
 
@@ -183,13 +236,26 @@ class CustomTree(treelib.Tree):
         return selected_node.data
 
     def prune(self, id_to_prune, args):
+        """
+        Wrapper function for Tree.remove_node.
+
+        Parameters
+        ----------
+        id_to_prune : node.identifier
+        args : command line arguments
+        """
         if args.debug_mode:
-            print("Pruning in progress")
+            print(
+                f"{colorama.Fore.RED}Pruning in progress (id = {id_to_prune}){colorama.Style.RESET_ALL}"
+            )
             self.show()
         self.remove_node(id_to_prune)
         # perhaps more stuff here:
 
     def current_depth(self):
+        """
+        Wrapper function for depth. Meant to declutter.
+        """
         return self.depth(self.current_parent_id)
 
 
@@ -208,31 +274,47 @@ class NodeData:
     m: pint.models.timing_model.TimingModel = None
     unJUMPed_clusters: np.ndarray = None
 
+    def validator(self, args):
+
+        # if already validated, no need to validate again
+        validated = getattr(self, "validated", False)
+        if validated:
+            return validated
+
+        validator_funcs = [self.F1_validator, self.A1_validator]
+        self.validated = np.all([valid_func(args) for valid_func in validator_funcs])
+        return self.validated
+
+    def A1_validator(self, args):
+        A1 = self.m.A1.value
+        return_value = True if A1 >= 0 else False
+
+        if not return_value:
+            log.warning(f"Negative A1! ({A1=}))")
+
+        return return_value
+
+    def F1_validator(self, args):
+        F1 = self.m.F1.value
+        if args.F1_sign == "-":
+            return_value = True if F1 <= 0 else False
+        if args.F1_sign == "+":
+            return_value = True if F1 >= 0 else False
+
+        if not return_value:
+            log.warning(f"F1 wrong sign! ({F1=})")
+
+        return return_value
+
     def __iter__(self):
         return iter((self.m, self.unJUMPed_clusters))
-
-
-class tcolors:
-    """
-    Class to store strings that change the color of text printed to the terminal
-    """
-
-    HEADER = "\033[95m"
-    OKBLUE = "\033[94m"
-    OKCYAN = "\033[96m"
-    OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
-    FAIL = "\033[91m"
-    ENDC = "\033[0m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
 
 
 def starting_points(
     toas, args=None, score_function="original", start_type=None, start=[0], **kwargs
 ):
     """
-    Choose which cluster to NOT jump, i.e. where to start
+    Choose which cluster to NOT jump, i.e. where to start.
 
     Parameters
     ----------
@@ -796,6 +878,7 @@ def do_Ftests(f, mask_with_closest, args):
     if "F1" not in f_params and span > args.F1_lim * u.d:
         Ftest_F, m_plus_p = Ftest_param(m, f, "F1", args)
         if args.F1_sign:
+            # print(1)
             allow_F1 = True
             if args.F1_sign == "+":
                 if m_plus_p.F1.value < 0:
@@ -803,11 +886,15 @@ def do_Ftests(f, mask_with_closest, args):
                     print(f"Disallowing negative F1! ({m_plus_p.F1.value})")
                     allow_F1 = False
             elif args.F1_sign == "-":
+                # print(2)
                 if m_plus_p.F1.value > 0:
+                    # print(3)
                     Ftests[1.0] = "F1"
-                    print(f"Disallowing positive F1! ({m_plus_p.F1.value})")
+                    log.warning(f"Disallowing positive F1! ({m_plus_p.F1.value})")
                     allow_F1 = False
             if allow_F1:
+                # print(4)
+                # print(f"{m_plus_p.F1.value=}")
                 Ftests[Ftest_F] = "F1"
         else:
             Ftests[Ftest_F] = "F1"
@@ -960,12 +1047,12 @@ def quadratic_phase_wrap_checker(
                     raise e
 
     print(f"chisq_samples = {chisq_samples}")
-    min_wrap = round(
+    min_wrap_vertex = round(
         (b / 2)
         * (chisq_samples[-b] - chisq_samples[b])
         / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
     )
-    # check +1, 0, and -1 wrap from min_wrap just to be safe
+    # check +1, 0, and -1 wrap from min_wrap_vertex just to be safe
     # TODO: an improvement would be for APTB to continue down each path
     # of +1, 0, and -1. However, knowing when to prune a branch
     # would have to implemented. I should view how Paulo does it.
@@ -974,7 +1061,7 @@ def quadratic_phase_wrap_checker(
 
     # default is range(-1, 2) (i.e. [-1, 0, 1])
     for wrap in range(-args.vertex_wrap, args.vertex_wrap + 1):
-        min_wrap_plusminus = min_wrap + wrap
+        min_wrap_plusminus = min_wrap_vertex + wrap
         t.table["delta_pulse_number"][closest_cluster_mask] = min_wrap_plusminus
         f.fit_toas(maxiter=maxiter_while)
 
@@ -985,8 +1072,8 @@ def quadratic_phase_wrap_checker(
         ###f.reset_model()
         m_wrap_dict[min_wrap_plusminus] = deepcopy(f.model)
         f.model = deepcopy(m_copy)
-        # t_wrap_dict[min_wrap + wrap] = deepcopy(t)
-        # f_wrap_dict[min_wrap + wrap] = deepcopy(f)
+        # t_wrap_dict[min_wrap_vertex + wrap] = deepcopy(t)
+        # f_wrap_dict[min_wrap_vertex + wrap] = deepcopy(f)
 
     min_chisq = min(chisq_wrap.keys())
     print(f"chisq_wrap = {chisq_wrap}")
@@ -1015,8 +1102,12 @@ def quadratic_phase_wrap_checker(
             f"min_chisq = {min_chisq} > {args.prune_condition}, attempting F-test, then rerunning quadratic_phase_wrap_checker (iteration = {iteration})"
         )
         f.model = do_Ftests(f, mask_with_closest, args)
+        # print(f"{f.model.F1.value=}")
         f.fit_toas(maxiter=maxiter_while)
+        # print(f"{f.model.F1.value=}")
         print(f"reduced chisq is {f.resids.chi2_reduced}")
+        # TODO add a check on the chisq here
+
         phase_connector(
             t,
             f.model,
@@ -1093,7 +1184,7 @@ def quadratic_phase_wrap_checker(
         solution_tree.branch_creator(
             f,
             m_wrap_dict,
-            min_wrap,
+            min_wrap_vertex,
             iteration,
             chisq_wrap,
             min_wrap_number_total,
@@ -1114,7 +1205,7 @@ def quadratic_phase_wrap_checker(
     # t.table[closest_cluster_mask] = t_closest_cluster.table
 
 
-def APTB_argument_parse(parser, argv, argparse: argparse):
+def APTB_argument_parse(parser, argv):
 
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
@@ -1361,7 +1452,7 @@ def APTB_argument_parse(parser, argv, argparse: argparse):
     )
     parser.add_argument(
         "--debug_mode",
-        help="Whether to enter debug mode (t/f)",
+        help="Whether to enter debug mode. (default = True recommended for the time being)",
         action=argparse.BooleanOptionalAction,
         type=bool,
         default=True,
@@ -1581,8 +1672,53 @@ def main_for_loop(
             f"\n{colorama.Fore.LIGHTCYAN_EX}closest cluster: {closest_cluster}{colorama.Style.RESET_ALL}"
         )
         if closest_cluster is None:
-            # end the program
-            break
+            # save this file
+            correct_solution_procedure(
+                deepcopy(f),
+                args,
+                for_loop_start,
+                mask,
+                alg_saves_mask_Path / Path("Solutions"),
+                iteration,
+                timfile,
+                pulsar_name,
+                bad_mjds,
+            )
+
+            if args.find_all_solutions and args.branches:
+                # need to load the next best branch, but need to what happens after quad_phase_wrap_checker first
+
+                f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
+                mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
+                f.toas = t = t_original
+                t.table["delta_pulse_number"] = 0
+                t.compute_pulse_numbers(f.model)
+                f.model = do_Ftests(f, mask_with_closest, args)
+                f.fit_toas(maxiter=maxiter_while)
+                print(
+                    f"{colorama.Fore.MAGENTA}reduced chisq at botttom of while loop is {f.resids.chi2_reduced}{colorama.Style.RESET_ALL}"
+                )
+
+                if not save_state(
+                    f,
+                    f.model,
+                    t,
+                    mjds_total,
+                    pulsar_name,
+                    args=args,
+                    folder=alg_saves_mask_Path,
+                    iteration=f"i{iteration}_d{solution_tree.current_depth()}_c{closest_cluster}",
+                    save_plot=True,
+                    mask_with_closest=mask_with_closest,
+                ):
+                    skip_mask = True
+                    break
+
+                # go to start of while True loop
+                continue
+            else:
+                # end the program
+                break
 
         closest_cluster_mask = t.table["clusters"] == closest_cluster
 
@@ -1614,18 +1750,6 @@ def main_for_loop(
         t.compute_pulse_numbers(f.model)
         residuals = pint.residuals.Residuals(t, f.model).calc_phase_resids()
 
-        # save_state(
-        #     f,
-        #     m,
-        #     t,
-        #     mjds_total,
-        #     pulsar_name,
-        #     args=args,
-        #     folder=alg_saves_mask_Path,
-        #     iteration=f"prepre{iteration}",
-        #     save_plot=True,
-        # )
-
         phase_connector(
             t,
             f.model,
@@ -1644,7 +1768,7 @@ def main_for_loop(
             pulsar_name,
             args=args,
             folder=alg_saves_mask_Path,
-            iteration=f"prefit_d{solution_tree.current_depth()}_i{iteration}_c{closest_cluster}",
+            iteration=f"prefit_i{iteration}_d{solution_tree.current_depth()}_c{closest_cluster}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
         ):
@@ -1671,7 +1795,6 @@ def main_for_loop(
             if args.branches:
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
-                print(f"\t\t{unJUMPed_clusters=}")
             f.toas = t = t_original
 
         else:
@@ -1695,7 +1818,9 @@ def main_for_loop(
         #########f = WLSFitter(t, m)
         #########f.model = m
         f.fit_toas(maxiter=maxiter_while)
-        print(f"reduced chisq at botttom of while loop is {f.resids.chi2_reduced}")
+        print(
+            f"{colorama.Fore.MAGENTA}reduced chisq at botttom of while loop is {f.resids.chi2_reduced}{colorama.Style.RESET_ALL}"
+        )
 
         #######m = f.model
 
@@ -1707,7 +1832,7 @@ def main_for_loop(
             pulsar_name,
             args=args,
             folder=alg_saves_mask_Path,
-            iteration=f"d{solution_tree.current_depth()}_i{iteration}_c{closest_cluster}",
+            iteration=f"i{iteration}_d{solution_tree.current_depth()}_c{closest_cluster}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
         ):
@@ -1716,12 +1841,25 @@ def main_for_loop(
 
         # repeat while True loop
 
+
+def correct_solution_procedure(
+    f,
+    args,
+    for_loop_start,
+    mask,
+    alg_saves_mask_solutions_Path,
+    iteration,
+    timfile,
+    pulsar_name,
+    bad_mjds,
+):
+    if not alg_saves_mask_solutions_Path.exists():
+        alg_saves_mask_solutions_Path.mkdir()
     # fit again with maxiter=4 for good measure
     f.fit_toas(maxiter=4)
     m = f.model
+    t = f.toas
     # if skip_mask was set to true in the while loop, then move onto the next mask
-    if skip_mask:
-        return "continue"
 
     # try fitting with any remaining unfit parameters included and see if the fit is better for it
     m_plus = deepcopy(m)
@@ -1747,9 +1885,13 @@ def main_for_loop(
     print("Final Model:\n", f.model.as_parfile())
 
     # save as .fin
-    fin_name = Path(f.model.PSR.value + ".fin")
-    with open(alg_saves_mask_Path / fin_name, "w") as finfile:
+    fin_Path = alg_saves_mask_solutions_Path / Path(
+        f"{f.model.PSR.value}_i{iteration}.fin"
+    )
+    with open(fin_Path, "w") as finfile:
         finfile.write(f.model.as_parfile())
+    tim_fin_name = Path(f.model.PSR.value + f"_fin_i{iteration}.tim")
+    f.toas.write_TOA_file(alg_saves_mask_solutions_Path / tim_fin_name)
 
     # plot final residuals if plot_final True
     xt = t.get_mjds()
@@ -1771,7 +1913,10 @@ def main_for_loop(
         fmt=".b",
         label="post-fit (phase)",
     )
-    ax.set_title(f"{m.PSR.value} Final Post-Fit Timing Residuals")
+    chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
+    ax.set_title(
+        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 5)})"
+    )
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
     twinx.set_ylabel("Residual (phase)", labelpad=15)
@@ -1786,12 +1931,13 @@ def main_for_loop(
         plt.show()
 
     fig.savefig(
-        alg_saves_mask_Path / Path(f"{pulsar_name}_final.png"), bbox_inches="tight"
+        alg_saves_mask_solutions_Path / Path(f"{pulsar_name}_final_i{iteration}.png"),
+        bbox_inches="tight",
     )
     plt.close()
 
     # if success, stop trying and end program
-    if pint.residuals.Residuals(t, f.model).chi2_reduced < float(args.chisq_cutoff):
+    if chi2_reduced < float(args.chisq_cutoff):
         print(
             "SUCCESS! A solution was found with reduced chi2 of",
             pint.residuals.Residuals(t, f.model).chi2_reduced,
@@ -1804,7 +1950,7 @@ def main_for_loop(
                 try:
                     identical_solution = solution_compare(
                         args.parfile_compare,
-                        alg_saves_mask_Path / Path(f"{f.model.PSR.value}.fin"),
+                        fin_Path,
                         timfile,
                     )
                     # if succesful, break the loop
@@ -1841,13 +1987,12 @@ def main_for_loop(
 
 
 def main():
-    import argparse
     import sys
 
     parser = argparse.ArgumentParser(
         description="PINT tool for agorithmically timing binary pulsars."
     )
-    args, parser = APTB_argument_parse(parser, argv=None, argparse=argparse)
+    args, parser = APTB_argument_parse(parser, argv=None)
 
     # print(type(args))
     # raise Exception("stop")
