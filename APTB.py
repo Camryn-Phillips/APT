@@ -221,6 +221,9 @@ class CustomTree(treelib.Tree):
         while True:
             if current_parent_node.order:
                 break
+            elif current_parent_node == "Root":
+                # program is done
+                return None, None
 
             new_parent = self.parent(current_parent_id)
             self.prune(current_parent_id, args)
@@ -867,6 +870,10 @@ def do_Ftests(f, mask_with_closest, args):
             f_params.append(param)
 
     # if span is longer than minimum parameter span and parameter hasn't been added yet, do Ftest to see if parameter should be added
+    if "F0" not in f_params and span > args.F0_lim * u.d:
+        Ftest_R, m_plus_p = Ftest_param(m, f, "F0", args)
+        Ftests[Ftest_R] = "F0"
+
     if "RAJ" not in f_params and span > args.RAJ_lim * u.d:
         Ftest_R, m_plus_p = Ftest_param(m, f, "RAJ", args)
         Ftests[Ftest_R] = "RAJ"
@@ -932,6 +939,12 @@ def do_Ftests(f, mask_with_closest, args):
         print(f"Ftests = {Ftests}")
 
     return m
+
+
+def set_F0_lim(args, m):
+    if args.F1_lim != None:
+        m.F0.frozen = True
+        return m
 
 
 def set_F1_lim(args, parfile):
@@ -1246,6 +1259,12 @@ def APTB_argument_parse(parser, argv):
         default=3.0,
     )
     parser.add_argument(
+        "--F0_lim",
+        help="minimum time span before Spindown (F0) can be fit for (default = fit for F0 immediately)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
         "--RAJ_lim",
         help="minimum time span before Right Ascension (RAJ) can be fit for",
         type=float,
@@ -1481,7 +1500,9 @@ def APTB_argument_parse(parser, argv):
     args = parser.parse_args(argv)
 
     if args.branches and not args.check_phase_wraps:
-        raise argparse.ArgumentTypeError("Branches only works if phase wraps are being checked.")
+        raise argparse.ArgumentTypeError(
+            "Branches only works if phase wraps are being checked."
+        )
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
@@ -1543,6 +1564,7 @@ def main_for_loop(
     if args.binary_model.lower() == "ell1":
         for param in ["PB", "TASC", "A1"]:
             getattr(m, param).frozen = False
+    m = set_F0_lim(args, m)
 
     # a copy, with the flags included
     base_toas = deepcopy(t)
@@ -1692,6 +1714,8 @@ def main_for_loop(
                 # need to load the next best branch, but need to what happens after quad_phase_wrap_checker first
 
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
+                if f.model is not None:
+                    break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
                 f.toas = t = t_original
                 t.table["delta_pulse_number"] = 0
@@ -1797,6 +1821,8 @@ def main_for_loop(
             )
             if args.branches:
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
+                if f.model is not None:
+                    break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
             f.toas = t = t_original
 
@@ -1843,6 +1869,9 @@ def main_for_loop(
             break
 
         # repeat while True loop
+
+    # end of main_for_loop
+    print()
 
 
 def correct_solution_procedure(
@@ -2051,7 +2080,7 @@ def main():
     if not alg_saves_Path.exists():
         alg_saves_Path.mkdir(parents=True)
 
-    set_F1_lim(args, parfile)
+    set_F0_lim(args, parfile)
 
     # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
     # (default to 2)
@@ -2068,7 +2097,7 @@ def main():
     if args.multiprocessing:
         from multiprocessing import Pool
 
-        log.warning(
+        log.error(
             "DeprecationWarning: This program's use of multiprocessing will likely be revisited in the future\n."
             + "Please be careful in your use of it as it could use more CPUs than you expect..."
         )
