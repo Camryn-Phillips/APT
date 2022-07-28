@@ -942,9 +942,8 @@ def do_Ftests(f, mask_with_closest, args):
 
 
 def set_F0_lim(args, m):
-    if args.F1_lim != None:
+    if args.F0_lim is not None:
         m.F0.frozen = True
-        return m
 
 
 def set_F1_lim(args, parfile):
@@ -1549,6 +1548,7 @@ def main_for_loop(
     solution_tree.save_location = alg_saves_mask_Path
 
     m = mb.get_model(parfile)
+    print(f"1{m=}")
     m, t = JUMP_adder_begginning_cluster(
         mask,
         toas,
@@ -1564,12 +1564,13 @@ def main_for_loop(
     if args.binary_model.lower() == "ell1":
         for param in ["PB", "TASC", "A1"]:
             getattr(m, param).frozen = False
-    m = set_F0_lim(args, m)
+    set_F0_lim(args, m)
 
     # a copy, with the flags included
     base_toas = deepcopy(t)
 
     # this should be one of the few instantiations of f (the 'global' f)
+    print(f"2{m=}")
     f = WLSFitter(t, m)
 
     # the following before the bigger while loop is the very first fit with only one cluster not JUMPed.
@@ -2080,10 +2081,8 @@ def main():
     if not alg_saves_Path.exists():
         alg_saves_Path.mkdir(parents=True)
 
-    set_F0_lim(args, parfile)
-
     # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
-    # (default to 2)
+    # (default to 1)
     maxiter_while = args.maxiter_while
 
     mask_list, starting_cluster_list = starting_points(
