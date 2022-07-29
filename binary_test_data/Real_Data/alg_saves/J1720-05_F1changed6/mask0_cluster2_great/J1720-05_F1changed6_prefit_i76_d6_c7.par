@@ -1,0 +1,50 @@
+# Created: 2022-07-27T14:17:07.842506
+# PINT_version: 0.8.8+444.gfdf59b66
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSR                   J1720-05_F1changed6
+EPHEM                               DE421
+CLK                          TT(BIPM2021)
+UNITS                                 TDB
+START              58975.1393537481600926
+FINISH             59402.0101453626522685
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  750
+CHI2                                  0.0
+RAJ                     17:20:56.39090649 1 0.00175565745174518844
+DECJ                    -5:35:37.88608885 1 0.31371546350567341976
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                   306.0301615379594441 1 1.2452099931815167971e-08
+F1              -4.4379606340336617857e-13 1 2.5367907385758936792e-15
+PEPOCH             58982.1327770000000000
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                              36.828786
+BINARY                               ELL1
+PB                 0.13169860453953401822 1 3.2451635872842953837e-09
+A1                    0.05964432725932938 1 3.0433080326107015e-06
+TASC               58975.1724601983759264 1 2.098177051144827766e-06
+EPS1            0.00010862805698035051225 1 9.159815976760745499e-05
+EPS2            -0.00035689577637358624394 1 6.006042243120288289e-05
+TZRMJD             58982.1348627173173611
+TZRSITE                                GB
+TZRFRQ                            870.194
+JUMP            -jump_tim 0                       0.0 0 0.0
+JUMP            -jump_tim 1                       0.0 0 0.0
+JUMP            -jump_tim 3                       0.0 0 0.0
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 7                       0.0 0 0.0
+JUMP            -jump_tim 8        2.2147864935048176 1 0.000982659221427952
+JUMP            -jump_tim 9        2.8032496983033353 1 0.002026532574875861
+JUMP            -jump_tim 10         3.358773275441553 1 0.004097920966332539
