@@ -2113,6 +2113,8 @@ def main():
     if not alg_saves_Path.exists():
         alg_saves_Path.mkdir(parents=True)
 
+    set_F1_lim(args, parfile)
+
     # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
     # (default to 1)
     maxiter_while = args.maxiter_while
