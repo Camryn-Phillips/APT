@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/Users/jackson/anaconda3/envs/penguin/bin/python
 # -W ignore::FutureWarning -W ignore::UserWarning -W ignore:DeprecationWarning
 import pint.toa
 import pint.models
@@ -2250,6 +2250,8 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
+    # raise Exception("stop")
 
     start_time = time.monotonic()
     main()
