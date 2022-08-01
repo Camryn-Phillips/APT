@@ -1,4 +1,4 @@
-#!/Users/jackson/anaconda3/envs/penguin/bin/python
+#!/usr/bin/env python
 # -W ignore::FutureWarning -W ignore::UserWarning -W ignore:DeprecationWarning
 import pint.toa
 import pint.models
