@@ -973,7 +973,7 @@ def set_F1_lim(args, parfile):
     None
     """
 
-    if args.F1_lim == None:
+    if args.F1_lim is None:
         # for slow pulsars, allow F1 to be up to 1e-12 Hz/s, for medium pulsars, 1e-13 Hz/s, otherwise, 1e-14 Hz/s (recycled pulsars)
         F0 = mb.get_model(parfile).F0.value
 
@@ -989,6 +989,8 @@ def set_F1_lim(args, parfile):
         # rearranged equation [delta-phase = (F1*span^2)/2], span in seconds.
         # calculates span (in days) for delta-phase to reach 0.35 due to F1
         args.F1_lim = np.sqrt(0.35 * 2 / F1) / 86400.0
+    elif args.F1_lim == "inf":
+        args.F1_lim = np.inf
 
 
 def quadratic_phase_wrap_checker(
@@ -1737,7 +1739,7 @@ def main_for_loop(
                 # need to load the next best branch, but need to what happens after quad_phase_wrap_checker first
 
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
-                if f.model is not None:
+                if f.model is None:
                     break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
                 f.toas = t = t_original
@@ -1844,7 +1846,7 @@ def main_for_loop(
             )
             if args.branches:
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
-                if f.model is not None:
+                if f.model is None:
                     break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
             f.toas = t = t_original
