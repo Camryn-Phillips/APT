@@ -109,7 +109,7 @@ class CustomTree(treelib.Tree):
                 )
             self.blueprint.append((current_parent_id, node_name))
             data = NodeData(m_wrap_dict[number], deepcopy(unJUMPed_clusters))
-            if data.validator(args):
+            if data.data_is_valid(args):
                 self.create_node(
                     node_name,
                     node_name,
@@ -221,7 +221,7 @@ class CustomTree(treelib.Tree):
         while True:
             if current_parent_node.order:
                 break
-            elif current_parent_node == "Root":
+            elif current_parent_id == "Root":
                 # program is done
                 return None, None
 
@@ -277,7 +277,18 @@ class NodeData:
     m: pint.models.timing_model.TimingModel = None
     unJUMPed_clusters: np.ndarray = None
 
-    def validator(self, args):
+    def data_is_valid(self, args):
+        """_summary_
+
+        Parameters
+        ----------
+        args : command line argument
+
+        Returns
+        -------
+        bool
+            whether the data is valid
+        """
 
         # if already validated, no need to validate again
         validated = getattr(self, "validated", False)
@@ -299,9 +310,11 @@ class NodeData:
 
     def F1_validator(self, args):
         F1 = self.m.F1.value
-        if args.F1_sign == "-":
+        if args.F1_sign_always is None:
+            return True
+        elif args.F1_sign_always == "-":
             return_value = True if F1 <= 0 else False
-        if args.F1_sign == "+":
+        elif args.F1_sign_always == "+":
             return_value = True if F1 >= 0 else False
 
         if not return_value:
@@ -884,15 +897,15 @@ def do_Ftests(f, mask_with_closest, args):
 
     if "F1" not in f_params and span > args.F1_lim * u.d:
         Ftest_F, m_plus_p = Ftest_param(m, f, "F1", args)
-        if args.F1_sign:
+        if args.F1_sign_always:
             # print(1)
             allow_F1 = True
-            if args.F1_sign == "+":
+            if args.F1_sign_always == "+":
                 if m_plus_p.F1.value < 0:
                     Ftests[1.0] = "F1"
                     print(f"Disallowing negative F1! ({m_plus_p.F1.value})")
                     allow_F1 = False
-            elif args.F1_sign == "-":
+            elif args.F1_sign_always == "-":
                 # print(2)
                 if m_plus_p.F1.value > 0:
                     # print(3)
@@ -1282,8 +1295,15 @@ def APTB_argument_parse(parser, argv):
         default=None,
     )
     parser.add_argument(
+        "--F1_sign_always",
+        help="require that F1 be either positive or negative (+/-/None) for the entire runtime.",
+        choices=["+", "-", "None"],
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--F1_sign",
-        help="require that F1 be either positive or negative (+/-), or no requirement (None)",
+        help="require that F1 be either positive or negative (+/-/None) at the end of a solution.",
         choices=["+", "-", "None"],
         type=str,
         default="-",
@@ -1505,6 +1525,8 @@ def APTB_argument_parse(parser, argv):
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
+    if args.F1_sign_always == "None":
+        args.F1_sign_always = None
     if args.F1_sign == "None":
         args.F1_sign = None
 
@@ -1886,6 +1908,14 @@ def correct_solution_procedure(
     pulsar_name,
     bad_mjds,
 ):
+    # skip this solution
+    if args.F1_sign == "+" and f.model.F1.value < 0:
+        print(f"Solution discarded due to negative F1 ({f.model.F1.value=})!")
+        return
+    elif args.F1_sign == "-" and f.model.F1.value > 0:
+        print(f"Solution discarded due to positive F1 ({f.model.F1.value=})!")
+        return
+
     if not alg_saves_mask_solutions_Path.exists():
         alg_saves_mask_solutions_Path.mkdir()
     # fit again with maxiter=4 for good measure
@@ -1948,7 +1978,7 @@ def correct_solution_procedure(
     )
     chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
     ax.set_title(
-        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 5)})"
+        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 4)}, (F1 = {round(f.model.F1.value, 2)}))"
     )
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
