@@ -950,13 +950,15 @@ def do_Ftests(f, mask_with_closest, args):
         else:
             getattr(m, add_param).frozen = False
 
-        # sometimes it's neccesary/benefitial to add both
-        if add_param == "RAJ" or add_param == "DECJ":
-            if Ftests_reversed["DECJ"] < 1e-7:
-                getattr(m, "DECJ").frozen = False
-            if Ftests_reversed["RAJ"] < 1e-7:
-                getattr(m, "RAJ").frozen = False
-                
+        # sometimes it's neccesary/benefitial to add more
+        # if add_param == "RAJ" or add_param == "DECJ":
+        #     if "DECJ" in Ftests_reversed and Ftests_reversed["DECJ"] < 1e-7:
+        #         print("Adding DECJ as well.")
+        #         getattr(m, "DECJ").frozen = False
+        #     if "RAJ" in Ftests_reversed and Ftests_reversed["RAJ"] < 1e-7:
+        #         print("Adding RAJ as well")
+        #         getattr(m, "RAJ").frozen = False
+
     if args.debug_mode:
         print(f"Ftests = {Ftests}")
 
