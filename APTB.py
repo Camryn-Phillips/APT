@@ -40,7 +40,7 @@ class CustomTree(treelib.Tree):
         deep=False,
         node_class=None,
         identifier=None,
-        blueprint=list(),
+        blueprint=None,
         save_location=Path.cwd(),
     ):
         super().__init__(tree, deep, node_class, identifier)
@@ -48,6 +48,9 @@ class CustomTree(treelib.Tree):
         # will store this in a list so that when a branch is pruned
         # I can reconstruct the skeleton of the tree later
         self.blueprint = blueprint
+        # The python docs recommends doing default empty lists like this
+        if blueprint is None:
+            self.blueprint = []
         self.save_location = save_location
 
     def branch_creator(
