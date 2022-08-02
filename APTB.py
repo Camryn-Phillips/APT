@@ -932,6 +932,7 @@ def do_Ftests(f, mask_with_closest, args):
     #         Ftests[Ftest_F] = "EPS2"
 
     # remove possible boolean elements from Ftest returning False if chi2 increases
+    Ftests_reversed = {i: j for j, i in Ftests.items()}
     Ftests_keys = [key for key in Ftests.keys() if type(key) != bool]
 
     # if no Ftests performed, continue on without change
@@ -946,6 +947,14 @@ def do_Ftests(f, mask_with_closest, args):
         if add_param == "EPS1&2":
             getattr(m, "EPS1").frozen = False
             getattr(m, "EPS2").frozen = False
+
+        # sometimes it's neccesary/benefitial to add both
+        elif add_param == "RAJ" or add_param == "DECJ":
+            if Ftests_reversed["DECJ"] < 1e-7:
+                getattr(m, "DECJ").frozen = False
+            if Ftests_reversed["RAJ"] < 1e-7:
+                getattr(m, "RAJ").frozen = False
+            getattr(m, add_param).frozen = False
         else:
             getattr(m, add_param).frozen = False
     if args.debug_mode:
