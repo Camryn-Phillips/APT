@@ -40,7 +40,7 @@ class CustomTree(treelib.Tree):
         deep=False,
         node_class=None,
         identifier=None,
-        blueprint=[],
+        blueprint=list(),
         save_location=Path.cwd(),
     ):
         super().__init__(tree, deep, node_class, identifier)
@@ -1896,7 +1896,7 @@ def main_for_loop(
         # repeat while True loop
 
     # end of main_for_loop
-    print()
+    print(f"End of mask {mask_number}")
 
 
 def correct_solution_procedure(
@@ -1951,11 +1951,11 @@ def correct_solution_procedure(
 
     # save as .fin
     fin_Path = alg_saves_mask_solutions_Path / Path(
-        f"{f.model.PSR.value}_i{iteration}.fin"
+        f"{f.model.PSR.value}_i{iteration}.par"
     )
     with open(fin_Path, "w") as finfile:
         finfile.write(f.model.as_parfile())
-    tim_fin_name = Path(f.model.PSR.value + f"_fin_i{iteration}.tim")
+    tim_fin_name = Path(f.model.PSR.value + f"_i{iteration}.tim")
     f.toas.write_TOA_file(alg_saves_mask_solutions_Path / tim_fin_name)
 
     # plot final residuals if plot_final True
@@ -1979,8 +1979,10 @@ def correct_solution_procedure(
         label="post-fit (phase)",
     )
     chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
+    P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
+    round_numb = int(-np.log10(P1)) + 3
     ax.set_title(
-        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 4)}, (F1 = {round(f.model.F1.value, 2)}))"
+        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 4)}, (P1 = {round(P1, round_numb)}))"
     )
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
@@ -1996,7 +1998,7 @@ def correct_solution_procedure(
         plt.show()
 
     fig.savefig(
-        alg_saves_mask_solutions_Path / Path(f"{pulsar_name}_final_i{iteration}.png"),
+        alg_saves_mask_solutions_Path / Path(f"{pulsar_name}_i{iteration}.png"),
         bbox_inches="tight",
     )
     plt.close()
