@@ -923,14 +923,6 @@ def do_Ftests(f, mask_with_closest, args):
         m, t, f, f_params, span, Ftests, args
     )
 
-    # if args.binary_model.lower() == "ell1":
-    #     if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
-    #         Ftest_F = Ftest_param(m, f, "EPS1")
-    #         Ftests[Ftest_F] = "EPS1"
-    #     if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
-    #         Ftest_F = Ftest_param(m, f, "EPS2")
-    #         Ftests[Ftest_F] = "EPS2"
-
     # remove possible boolean elements from Ftest returning False if chi2 increases
     Ftests_reversed = {i: j for j, i in Ftests.items()}
     Ftests_keys = [key for key in Ftests.keys() if type(key) != bool]
