@@ -1415,7 +1415,7 @@ def APTB_argument_parse(parser, argv):
         help="whether to plot the final residuals at the end of each attempt",
         action=argparse.BooleanOptionalAction,
         type=bool,
-        default=True,
+        default=False,
     )
     parser.add_argument(
         "--data_path",
@@ -1521,7 +1521,14 @@ def APTB_argument_parse(parser, argv):
         help="Whether to continue searching for more solutions after finding the first one",
         action=argparse.BooleanOptionalAction,
         type=bool,
-        default=False,
+        default=True,
+    )
+    parser.add_argument(
+        "--start_warning",
+        help="Whether to turn on the start_warning if the reduced chisq is > 3 or not..",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=True,
     )
 
     args = parser.parse_args(argv)
@@ -1677,7 +1684,7 @@ def main_for_loop(
         chisq_start = f.resids.chi2_reduced
         # pint.residuals.Residuals(t, m).chi2_reduced
         log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
-        if chisq_start > 3:
+        if chisq_start > 3 and args.start_warning:
             log.warning(
                 f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
             )

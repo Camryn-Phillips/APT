@@ -1,0 +1,108 @@
+# Created: 2022-08-05T12:46:22.157190
+# PINT_version: 0.8.8+444.gfdf59b66.dirty
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSR                                fake_3
+EPHEM                               DE421
+CLOCK                        TT(BIPM2021)
+START              55999.9999999998095024
+FINISH             56958.8892135798879166
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                  361
+CHI2                                  0.0
+RAJ                      3:15:15.49963132 1 0.00070660669737884426
+DECJ                    73:30:04.31615916 1 0.00376544984731231984
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  185.54276657930042431 1 1.6716767304990987816e-10
+F1              -9.8632814168160059483e-17 1 5.6939387849512136316e-18
+PEPOCH             56000.0000000000000000
+PLANET_SHAPIRO                          N
+DM                                    0.0 0 0.0
+BINARY                               ELL1
+PB                  17.991554501278557958 1 2.8463061522503728202e-06
+A1                     0.5101953823869987 1 6.301046448240295e-06
+TASC               56790.8753609274395409 1 9.029940387746529572e-05
+EPS1            -8.9423901092252904626e-05 1 2.420437686658993094e-05
+EPS2             0.0004366083635761112114 1 2.6837939879459363408e-05
+TZRMJD             56000.0000000000000000
+TZRSITE                               GBT
+TZRFRQ                             1400.0
+JUMP            -jump_tim 0                       0.0 0 0.0
+JUMP            -jump_tim 1                       0.0 0 0.0
+JUMP            -jump_tim 2                       0.0 0 0.0
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 7                       0.0 0 0.0
+JUMP            -jump_tim 8                       0.0 0 0.0
+JUMP            -jump_tim 9                       0.0 0 0.0
+JUMP            -jump_tim 10                       0.0 0 0.0
+JUMP            -jump_tim 11                       0.0 0 0.0
+JUMP            -jump_tim 12                       0.0 0 0.0
+JUMP            -jump_tim 13                       0.0 0 0.0
+JUMP            -jump_tim 14                       0.0 0 0.0
+JUMP            -jump_tim 15                       0.0 0 0.0
+JUMP            -jump_tim 16                       0.0 0 0.0
+JUMP            -jump_tim 17                       0.0 0 0.0
+JUMP            -jump_tim 18                       0.0 0 0.0
+JUMP            -jump_tim 19                       0.0 0 0.0
+JUMP            -jump_tim 20                       0.0 0 0.0
+JUMP            -jump_tim 21                       0.0 0 0.0
+JUMP            -jump_tim 22                       0.0 0 0.0
+JUMP            -jump_tim 23                       0.0 0 0.0
+JUMP            -jump_tim 24                       0.0 0 0.0
+JUMP            -jump_tim 25                       0.0 0 0.0
+JUMP            -jump_tim 26                       0.0 0 0.0
+JUMP            -jump_tim 27                       0.0 0 0.0
+JUMP            -jump_tim 28                       0.0 0 0.0
+JUMP            -jump_tim 29                       0.0 0 0.0
+JUMP            -jump_tim 30                       0.0 0 0.0
+JUMP            -jump_tim 31                       0.0 0 0.0
+JUMP            -jump_tim 32                       0.0 0 0.0
+JUMP            -jump_tim 33                       0.0 0 0.0
+JUMP            -jump_tim 34                       0.0 0 0.0
+JUMP            -jump_tim 35                       0.0 0 0.0
+JUMP            -jump_tim 36                       0.0 0 0.0
+JUMP            -jump_tim 37                       0.0 0 0.0
+JUMP            -jump_tim 38                       0.0 0 0.0
+JUMP            -jump_tim 39                       0.0 0 0.0
+JUMP            -jump_tim 40                       0.0 0 0.0
+JUMP            -jump_tim 41                       0.0 0 0.0
+JUMP            -jump_tim 42                       0.0 0 0.0
+JUMP            -jump_tim 43                       0.0 0 0.0
+JUMP            -jump_tim 44                       0.0 0 0.0
+JUMP            -jump_tim 45                       0.0 0 0.0
+JUMP            -jump_tim 46                       0.0 0 0.0
+JUMP            -jump_tim 47                       0.0 0 0.0
+JUMP            -jump_tim 48                       0.0 0 0.0
+JUMP            -jump_tim 49                       0.0 0 0.0
+JUMP            -jump_tim 50                       0.0 0 0.0
+JUMP            -jump_tim 51                       0.0 0 0.0
+JUMP            -jump_tim 52                       0.0 0 0.0
+JUMP            -jump_tim 53                       0.0 0 0.0
+JUMP            -jump_tim 54                       0.0 0 0.0
+JUMP            -jump_tim 55                       0.0 0 0.0
+JUMP            -jump_tim 56                       0.0 0 0.0
+JUMP            -jump_tim 57                       0.0 0 0.0
+JUMP            -jump_tim 58         7.173558955579813 1 3.0368066522754693e-05
+JUMP            -jump_tim 59         7.232893961481496 1 3.58826121337693e-05
+JUMP            -jump_tim 60         7.351337936573201 1 4.6483459826640715e-05
+JUMP            -jump_tim 61         7.513105664836343 1 3.94400441787328e-05
+JUMP            -jump_tim 62         7.669446446079651 1 5.6060662560833185e-05
+JUMP            -jump_tim 63         7.874167357433276 1 4.05092923274082e-05
+JUMP            -jump_tim 64         8.073628889567606 1 4.974745638652257e-05
+JUMP            -jump_tim 65         8.213784013233711 1 5.092472928716334e-05
+JUMP            -jump_tim 66          8.40783191453224 1 4.429087041244467e-05
+JUMP            -jump_tim 67         8.682646895481621 1 4.967797238104877e-05
+JUMP            -jump_tim 68         8.962917753570498 1 4.897810373098912e-05
+JUMP            -jump_tim 69          9.17318142762736 1 8.201295239406518e-05
+JUMP            -jump_tim 70          9.40481645927107 1 5.516695368969592e-05
+JUMP            -jump_tim 71         9.593494836442366 1 5.1693558151095995e-05
+JUMP            -jump_tim 72         9.814486534804226 1 5.9476241692054667e-05
+JUMP            -jump_tim 73        10.002999502281794 1 6.723831772980611e-05
+JUMP            -jump_tim 74        10.110883751917594 1 4.781841302432919e-05

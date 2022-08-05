@@ -198,14 +198,16 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         d2 = [int(r.uniform(0.8, 2.2) / density) for i in range(r.randint(2, 4))]
         d3 = [int(r.uniform(4, 7) / density) for i in range(r.randint(2, 4))]
         d4 = [int(r.uniform(6, 14) / density) for i in range(r.randint(1, 3))]
-        distances = d1 + d2 + d3 + d4
     else:
         # observe at a higher cadence for longer
         d1 = [int(r.uniform(0.1, 0.9) / density) for i in range(2)]
         d2 = [int(r.uniform(0.8, 2.2) / density) for i in range(r.randint(4, 7))]
         d3 = [int(r.uniform(4, 7) / density) for i in range(r.randint(4, 6))]
         d4 = [int(r.uniform(6, 14) / density) for i in range(r.randint(3, 7))]
-        distances = d1 + d2 + d3 + d4
+
+    distances = d1 + d2 + d3 + d4
+    if args.flipped:
+        distances = d4 + d3 + d2 + d1
 
     # make a mask which only allows TOAs to exist on those spans specified by the distances above
     mask = np.zeros(ntoas, dtype=bool)
@@ -224,7 +226,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
 
             # average of 1.5 more toas per obs if its a binary
             if args.binary_model is not None:
-                obs_length += r.randint(0,3)
+                obs_length += r.randint(0, 3)
         mask[i : i + obs_length] = ~mask[i : i + obs_length]
         i = i + obs_length + distance
 
@@ -233,7 +235,7 @@ def write_timfile(args, f0_save, tim_name, sol_name, pulsar_number_column=True):
         obs_length = r.randint(1, 8)
         distance = int(r.uniform(20, 40) / density)
         if args.binary_model is not None:
-            obs_length += r.randint(0,3)
+            obs_length += r.randint(0, 3)
             # twice a month instead of once a month
             distance = int(r.uniform(10, 20) / density)
         mask[i : i + obs_length] = ~mask[i : i + obs_length]
@@ -762,6 +764,14 @@ def main(argv=None):
         type=str,
         default=None,
     )
+    parser.add_argument(
+        "--flipped",
+        help="whether to flip the densities of the TOAs",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=False,
+    )
+
     # parse comma-seperated pairs
     args = parser.parse_args(argv)
     if args.binary_model is not None and args.span == "200,700":
@@ -769,7 +779,7 @@ def main(argv=None):
         args.span = [
             700,
             1200,
-        ]  
+        ]
     else:
         args.span = [float(i) for i in args.span.split(",")]
     args.f0blur_range = [float(i) for i in args.f0blur_range.split(",")]
