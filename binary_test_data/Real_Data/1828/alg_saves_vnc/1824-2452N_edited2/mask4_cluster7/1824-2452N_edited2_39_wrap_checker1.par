@@ -1,0 +1,62 @@
+# Created: 2022-08-09T15:08:58.308742
+# PINT_version: 0.8.8+358.g85a5b2d
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                    1824-2452N_edited2
+EPHEM                               DE421
+CLK                          TT(BIPM2021)
+UNITS                                 TDB
+START              53629.0864521070478472
+FINISH             54573.4752358817048264
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   44
+CHI2                                  0.0
+RAJ                     18:24:33.23771423 1 0.01032979369869139498
+DECJ                   -24:51:29.52099172 1 3.24508070695232397895
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  298.25168596062621548 1 8.847121261581013682e-07
+F1               -1.02100586774385072e-13 1 1.94455899116056977e-15
+PEPOCH             59000.0000000000000000
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                                  119.3
+BINARY                               ELL1
+PB                 0.19849330481474357045 1 2.2145517585395931397e-09
+A1                    0.04975895295013374 1 4.1221926412431366e-06
+TASC               59194.4670213061827972 1 5.7965028643117288303e-05
+EPS1                                  0.0
+EPS2                                  0.0
+TZRMJD             59189.3471548598278009
+TZRSITE                                MK
+TZRFRQ                           1283.896
+JUMP            -jump_tim 0                       0.0 0 0.0
+JUMP            -jump_tim 1                       0.0 0 0.0
+JUMP            -jump_tim 2                       0.0 0 0.0
+JUMP            -jump_tim 3                       0.0 0 0.0
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 8                       0.0 0 0.0
+JUMP            -jump_tim 9                       0.0 0 0.0
+JUMP            -jump_tim 10                       0.0 0 0.0
+JUMP            -jump_tim 11                       0.0 0 0.0
+JUMP            -jump_tim 12                       0.0 0 0.0
+JUMP            -jump_tim 13                       0.0 0 0.0
+JUMP            -jump_tim 14      -0.46873151301179294 1 0.0019364266182849315
+JUMP            -jump_tim 15       -0.4988144462639474 1 0.0024145035017730503
+JUMP            -jump_tim 16       -0.5985075647439871 1 0.004486121420603709
+JUMP            -jump_tim 17       -0.6265461354436443 1 0.005072447003227841
+JUMP            -jump_tim 18       -0.7783410603061557 1 0.010195098613311412
+JUMP            -jump_tim 19       -0.7819886058729351 1 0.01086622854106125
+JUMP            -jump_tim 20       -0.7810431304405784 1 0.013010585789127664
+JUMP            -jump_tim 21        -0.773514558730666 1 0.014938715264723734
+JUMP            -jump_tim 22       -0.7742757395414404 1 0.0168774482193282
