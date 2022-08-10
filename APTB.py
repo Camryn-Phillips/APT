@@ -922,6 +922,10 @@ def do_Ftests(f, mask_with_closest, args):
         else:
             Ftests[Ftest_F] = "F1"
 
+    if "F2" not in f_params and span > args.F2_lim * u.d:
+        Ftest_D, m_plus_p = Ftest_param(m, f, "F2", args)
+        Ftests[Ftest_D] = "F2"
+
     m, t, f, f_params, span, Ftests, args = APTB_extension.do_Ftests_binary(
         m, t, f, f_params, span, Ftests, args
     )
@@ -938,7 +942,9 @@ def do_Ftests(f, mask_with_closest, args):
     # if smallest Ftest of those calculated is less than the given limit, add that parameter to the model. Otherwise add no parameters
     elif min(Ftests_keys) < args.Ftest_lim:
         add_param = Ftests[min(Ftests_keys)]
-        print("adding param ", add_param, " with Ftest ", min(Ftests_keys))
+        print(
+            f"{colorama.Fore.LIGHTGREEN_EX}adding param {add_param} with Ftest {min(Ftests_keys)}{colorama.Style.RESET_ALL}"
+        )
         if add_param == "EPS1&2":
             getattr(m, "EPS1").frozen = False
             getattr(m, "EPS2").frozen = False
@@ -997,6 +1003,13 @@ def set_F1_lim(args, parfile):
         args.F1_lim = np.sqrt(0.35 * 2 / F1) / 86400.0
     elif args.F1_lim == "inf":
         args.F1_lim = np.inf
+
+
+def set_F2_lim(args, parfile):
+    if args.F2_lim is None or args.F2_lim == "inf":
+        args.F2_lim = np.inf
+    # elif:
+    #     pass
 
 
 def quadratic_phase_wrap_checker(
@@ -1303,6 +1316,12 @@ def APTB_argument_parse(parser, argv):
         default=None,
     )
     parser.add_argument(
+        "--F2_lim",
+        help="minimum time span before Spindown (F1) can be fit for (default = infinity)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
         "--F1_sign_always",
         help="require that F1 be either positive or negative (+/-/None) for the entire runtime.",
         choices=["+", "-", "None"],
@@ -1525,7 +1544,7 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--start_warning",
-        help="Whether to turn on the start_warning if the reduced chisq is > 3 or not..",
+        help="Whether to turn on the start_warning if the reduced chisq is > 3 or not.",
         action=argparse.BooleanOptionalAction,
         type=bool,
         default=True,
@@ -2129,6 +2148,7 @@ def main():
         alg_saves_Path.mkdir(parents=True)
 
     set_F1_lim(args, parfile)
+    set_F2_lim(args, parfile)
 
     # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
     # (default to 1)
@@ -2250,9 +2270,11 @@ def main():
                 #         print(solution_tree[node_key].data.unJUMPed_clusters)
                 #         break
                 skeleton_tree.show()
-                skeleton_tree.save2file(
-                    solution_tree.save_location / Path("solution_tree.tree")
+                tree_file_name = solution_tree.save_location / Path(
+                    "solution_tree.tree"
                 )
+                skeleton_tree.save2file(tree_file_name)
+
                 print(f"tree depth = {depth}")
                 mask_end_time = time.monotonic()
                 print(
