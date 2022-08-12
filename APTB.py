@@ -1696,10 +1696,11 @@ def main_for_loop(
             folder=alg_saves_mask_Path,
             iteration=f"start{start_iter}",
             save_plot=True,
+            mask_with_closest=mask,
         ):
             return "continue"
 
-        # something is certaintly wrong if the reduced chisq is greater that 3 at this stage
+        # something is certaintly wrong if the reduced chisq is greater than 3 at this stage
         chisq_start = f.resids.chi2_reduced
         # pint.residuals.Residuals(t, m).chi2_reduced
         log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
@@ -2011,8 +2012,12 @@ def correct_solution_procedure(
         label="post-fit (phase)",
     )
     chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
-    P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
-    round_numb = int(-np.log10(P1)) + 3
+    if f.model.F1.value:
+        P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
+        round_numb = int(-np.log10(P1)) + 3
+    else:
+        P1 = 0
+        round_numb = 1
     ax.set_title(
         f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 4)}, (P1 = {round(P1, round_numb)}))"
     )
