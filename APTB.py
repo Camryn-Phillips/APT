@@ -1258,7 +1258,7 @@ def APTB_argument_parse(parser, argv):
     parser.add_argument(
         "--binary_model",
         help="which binary pulsar model to use.",
-        choices=["ELL1", "ell1"],
+        choices=["ELL1", "ell1", "BT", "bt"],
         default=None,
     )
     parser.add_argument(
@@ -1337,7 +1337,19 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--EPS_lim",
-        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5",
+        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--ECC_lim",
+        help="minimum time span before E can be fit for (default = PB*3)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--OM_lim",
+        help="minimum time span before OM can be fit for (default = PB*3)",
         type=float,
         default=None,
     )
@@ -1620,6 +1632,10 @@ def main_for_loop(
     if args.binary_model.lower() == "ell1":
         for param in ["PB", "TASC", "A1"]:
             getattr(m, param).frozen = False
+    elif args.binary_model.lower() == "bt":
+        for param in ["PB", "T0", "A1"]:
+            getattr(m, param).frozen = False
+
     set_F0_lim(args, m)
 
     # a copy, with the flags included
@@ -1968,6 +1984,9 @@ def correct_solution_procedure(
     if args.binary_model.lower() == "ell1":
         getattr(m_plus, "EPS1").frozen = False
         getattr(m_plus, "EPS2").frozen = False
+    if args.binary_model.lower() == "bt":
+        getattr(m_plus, "E").frozen = False
+        getattr(m_plus, "OM").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
