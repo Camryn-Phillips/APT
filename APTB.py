@@ -1337,7 +1337,7 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--EPS_lim",
-        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5)",
+        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5)",  # TODO may need to update this
         type=float,
         default=None,
     )
@@ -1633,7 +1633,7 @@ def main_for_loop(
         for param in ["PB", "TASC", "A1"]:
             getattr(m, param).frozen = False
     elif args.binary_model.lower() == "bt":
-        for param in ["PB", "T0", "A1"]:
+        for param in ["PB", "T0", "A1", "ECC", "OM"]:
             getattr(m, param).frozen = False
 
     set_F0_lim(args, m)
@@ -1984,7 +1984,7 @@ def correct_solution_procedure(
     if args.binary_model.lower() == "ell1":
         getattr(m_plus, "EPS1").frozen = False
         getattr(m_plus, "EPS2").frozen = False
-    if args.binary_model.lower() == "bt":
+    if args.binary_model.lower() == "bt":  # TODO may need to change this
         getattr(m_plus, "E").frozen = False
         getattr(m_plus, "OM").frozen = False
 
