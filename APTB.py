@@ -2033,7 +2033,11 @@ def correct_solution_procedure(
     chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
     if f.model.F1.value:
         P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
-        round_numb = int(-np.log10(P1)) + 3
+        if P1 is np.nan:
+            P1 = 0
+            round_numb = 1
+        else:
+            round_numb = int(-np.log10(P1)) + 3
     else:
         P1 = 0
         round_numb = 1
