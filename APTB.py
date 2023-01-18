@@ -1472,7 +1472,7 @@ def APTB_argument_parse(parser, argv):
         type=float,
         default=5,
     )
-    parser.add_argument(
+    parser.add_argument( 
         "--multiprocessing",
         help="whether to include multiprocessing or not.",
         action=argparse.BooleanOptionalAction,
@@ -2032,12 +2032,12 @@ def correct_solution_procedure(
     )
     chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
     if f.model.F1.value:
-        P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
-        if P1 is np.nan:
+        try:
+            P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
+            round_numb = int(-np.log10(P1)) + 3
+        except ValueError as e:
             P1 = 0
             round_numb = 1
-        else:
-            round_numb = int(-np.log10(P1)) + 3
     else:
         P1 = 0
         round_numb = 1
