@@ -1,0 +1,62 @@
+# Created: 2022-08-09T14:50:05.558935
+# PINT_version: 0.8.8+358.g85a5b2d
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                    1824-2452N_edited2
+EPHEM                               DE200
+CLK                                UNCORR
+UNITS                                 TDB
+START              58683.8600000000000000
+FINISH             59194.6909999999999999
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   47
+CHI2                                  0.0
+RAJ                     18:24:32.81000000
+DECJ                   -24:52:11.20000000
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                    298.251725301131728 1 6.307408194e-07
+F1                                    0.0
+PEPOCH             59000.0000000000000000
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                                  119.3
+BINARY                               ELL1
+PB                       0.19849330265188 1 4.34389e-09
+A1                            0.049726499 1 8.92e-06
+TASC               59194.4672980340000000 1 6.9947e-06
+EPS1                                  0.0
+EPS2                                  0.0
+TZRMJD             59189.3471548598278009
+TZRSITE                                MK
+TZRFRQ                           1283.896
+JUMP		-jump_tim 0	0 1 0
+JUMP		-jump_tim 1	0 1 0
+JUMP		-jump_tim 2	0 1 0
+JUMP		-jump_tim 3	0 1 0
+JUMP		-jump_tim 5	0 1 0
+JUMP		-jump_tim 6	0 1 0
+JUMP		-jump_tim 7	0 1 0
+JUMP		-jump_tim 8	0 1 0
+JUMP		-jump_tim 9	0 1 0
+JUMP		-jump_tim 10	0 1 0
+JUMP		-jump_tim 11	0 1 0
+JUMP		-jump_tim 12	0 1 0
+JUMP		-jump_tim 13	0 1 0
+JUMP		-jump_tim 14	0 1 0
+JUMP		-jump_tim 15	0 1 0
+JUMP		-jump_tim 16	0 1 0
+JUMP		-jump_tim 17	0 1 0
+JUMP		-jump_tim 18	0 1 0
+JUMP		-jump_tim 19	0 1 0
+JUMP		-jump_tim 20	0 1 0
+JUMP		-jump_tim 21	0 1 0
+JUMP		-jump_tim 22	0 1 0

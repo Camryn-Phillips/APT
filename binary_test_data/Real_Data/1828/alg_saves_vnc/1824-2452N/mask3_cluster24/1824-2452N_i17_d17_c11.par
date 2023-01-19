@@ -1,0 +1,73 @@
+# Created: 2022-08-05T17:10:14.482492
+# PINT_version: 0.8.8+358.g85a5b2d
+# User: jdtaylor
+# Host: nimrod
+# OS: Linux-2.6.32-754.35.1.el6.x86_64-x86_64-with-glibc2.12
+# Format: pint
+PSR                            1824-2452N
+EPHEM                               DE421
+CLK                          TT(BIPM2021)
+UNITS                                 TDB
+START              53629.0864521070478472
+FINISH             54573.4752358817048148
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   72
+CHI2                                  0.0
+RAJ                     18:24:33.14174734 1 0.00028256062605390658
+DECJ                   -24:52:11.81157365 1 0.06524000068500467042
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  298.25172546221243172 1 1.13970088472156419865e-08
+F1              -1.4154856823133106784e-14 1 2.637533992502458331e-17
+PEPOCH             59000.0000000000000000
+TZRMJD             59189.3471548598278009
+TZRSITE                                MK
+TZRFRQ                           1283.896
+JUMP            -jump_tim 0        0.8281161558249224 1 5.457185077327468e-05
+JUMP            -jump_tim 1        0.7845797354143543 1 5.655221557900519e-05
+JUMP            -jump_tim 2        0.7845418210992989 1 5.325606249448572e-05
+JUMP            -jump_tim 3        0.6806352340123579 1 3.3586621047241994e-05
+JUMP            -jump_tim 4        0.6269855800123919 1 2.0881506060528364e-05
+JUMP            -jump_tim 5         0.603516994012047 1 2.4137213504390233e-05
+JUMP            -jump_tim 6        0.6035162919437282 1 2.5271312197118146e-05
+JUMP            -jump_tim 7        0.6001581621571037 1 1.6772627747903197e-05
+JUMP            -jump_tim 8        0.5968054075847036 1 2.3218749187748924e-05
+JUMP            -jump_tim 9        0.5967947843823183 1 2.432232576425293e-05
+JUMP            -jump_tim 10        0.5968240327257238 1 2.2310148699851746e-05
+JUMP            -jump_tim 11                       0.0 0 0.0
+JUMP            -jump_tim 12                       0.0 0 0.0
+JUMP            -jump_tim 13                       0.0 0 0.0
+JUMP            -jump_tim 14                       0.0 0 0.0
+JUMP            -jump_tim 15                       0.0 0 0.0
+JUMP            -jump_tim 16                       0.0 0 0.0
+JUMP            -jump_tim 17                       0.0 0 0.0
+JUMP            -jump_tim 18                       0.0 0 0.0
+JUMP            -jump_tim 19                       0.0 0 0.0
+JUMP            -jump_tim 20                       0.0 0 0.0
+JUMP            -jump_tim 21                       0.0 0 0.0
+JUMP            -jump_tim 22                       0.0 0 0.0
+JUMP            -jump_tim 23                       0.0 0 0.0
+JUMP            -jump_tim 25                       0.0 0 0.0
+JUMP            -jump_tim 26                       0.0 0 0.0
+JUMP            -jump_tim 27                       0.0 0 0.0
+JUMP            -jump_tim 28                       0.0 0 0.0
+JUMP            -jump_tim 29       -0.5365234149209921 1 5.644461978030236e-05
+JUMP            -jump_tim 30       -0.5666567411530512 1 5.8944703456834426e-05
+JUMP            -jump_tim 31       -0.6571805269983169 1 6.890449899077473e-05
+JUMP            -jump_tim 32       -0.7376688034548105 1 7.99020776471108e-05
+JUMP            -jump_tim 33       -0.8248360610424029 1 9.868241161737213e-05
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                                  119.3
+BINARY                               ELL1
+PB                 0.19849331517062983087 1 2.233955739435833513e-09
+A1                   0.049729244497221284 1 3.367884716329522e-06
+TASC               59194.4672987279838772 1 5.793820330732042808e-05
+EPS1                                  0.0
+EPS2                                  0.0

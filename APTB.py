@@ -40,7 +40,7 @@ class CustomTree(treelib.Tree):
         deep=False,
         node_class=None,
         identifier=None,
-        blueprint=[],
+        blueprint=None,
         save_location=Path.cwd(),
     ):
         super().__init__(tree, deep, node_class, identifier)
@@ -48,6 +48,9 @@ class CustomTree(treelib.Tree):
         # will store this in a list so that when a branch is pruned
         # I can reconstruct the skeleton of the tree later
         self.blueprint = blueprint
+        # The python docs recommends doing default empty lists like this
+        if blueprint is None:
+            self.blueprint = []
         self.save_location = save_location
 
     def branch_creator(
@@ -109,7 +112,7 @@ class CustomTree(treelib.Tree):
                 )
             self.blueprint.append((current_parent_id, node_name))
             data = NodeData(m_wrap_dict[number], deepcopy(unJUMPed_clusters))
-            if data.validator(args):
+            if data.data_is_valid(args):
                 self.create_node(
                     node_name,
                     node_name,
@@ -221,7 +224,7 @@ class CustomTree(treelib.Tree):
         while True:
             if current_parent_node.order:
                 break
-            elif current_parent_node == "Root":
+            elif current_parent_id == "Root":
                 # program is done
                 return None, None
 
@@ -277,7 +280,18 @@ class NodeData:
     m: pint.models.timing_model.TimingModel = None
     unJUMPed_clusters: np.ndarray = None
 
-    def validator(self, args):
+    def data_is_valid(self, args):
+        """_summary_
+
+        Parameters
+        ----------
+        args : command line argument
+
+        Returns
+        -------
+        bool
+            whether the data is valid
+        """
 
         # if already validated, no need to validate again
         validated = getattr(self, "validated", False)
@@ -299,9 +313,11 @@ class NodeData:
 
     def F1_validator(self, args):
         F1 = self.m.F1.value
-        if args.F1_sign == "-":
+        if args.F1_sign_always is None:
+            return True
+        elif args.F1_sign_always == "-":
             return_value = True if F1 <= 0 else False
-        if args.F1_sign == "+":
+        elif args.F1_sign_always == "+":
             return_value = True if F1 >= 0 else False
 
         if not return_value:
@@ -884,15 +900,15 @@ def do_Ftests(f, mask_with_closest, args):
 
     if "F1" not in f_params and span > args.F1_lim * u.d:
         Ftest_F, m_plus_p = Ftest_param(m, f, "F1", args)
-        if args.F1_sign:
+        if args.F1_sign_always:
             # print(1)
             allow_F1 = True
-            if args.F1_sign == "+":
+            if args.F1_sign_always == "+":
                 if m_plus_p.F1.value < 0:
                     Ftests[1.0] = "F1"
                     print(f"Disallowing negative F1! ({m_plus_p.F1.value})")
                     allow_F1 = False
-            elif args.F1_sign == "-":
+            elif args.F1_sign_always == "-":
                 # print(2)
                 if m_plus_p.F1.value > 0:
                     # print(3)
@@ -906,19 +922,16 @@ def do_Ftests(f, mask_with_closest, args):
         else:
             Ftests[Ftest_F] = "F1"
 
+    if "F2" not in f_params and span > args.F2_lim * u.d:
+        Ftest_D, m_plus_p = Ftest_param(m, f, "F2", args)
+        Ftests[Ftest_D] = "F2"
+
     m, t, f, f_params, span, Ftests, args = APTB_extension.do_Ftests_binary(
         m, t, f, f_params, span, Ftests, args
     )
 
-    # if args.binary_model.lower() == "ell1":
-    #     if "EPS1" not in f_params and span > args.EPS1_lim * u.d:
-    #         Ftest_F = Ftest_param(m, f, "EPS1")
-    #         Ftests[Ftest_F] = "EPS1"
-    #     if "EPS2" not in f_params and span > args.EPS2_lim * u.d:
-    #         Ftest_F = Ftest_param(m, f, "EPS2")
-    #         Ftests[Ftest_F] = "EPS2"
-
     # remove possible boolean elements from Ftest returning False if chi2 increases
+    Ftests_reversed = {i: j for j, i in Ftests.items()}
     Ftests_keys = [key for key in Ftests.keys() if type(key) != bool]
 
     # if no Ftests performed, continue on without change
@@ -929,12 +942,24 @@ def do_Ftests(f, mask_with_closest, args):
     # if smallest Ftest of those calculated is less than the given limit, add that parameter to the model. Otherwise add no parameters
     elif min(Ftests_keys) < args.Ftest_lim:
         add_param = Ftests[min(Ftests_keys)]
-        print("adding param ", add_param, " with Ftest ", min(Ftests_keys))
+        print(
+            f"{colorama.Fore.LIGHTGREEN_EX}adding param {add_param} with Ftest {min(Ftests_keys)}{colorama.Style.RESET_ALL}"
+        )
         if add_param == "EPS1&2":
             getattr(m, "EPS1").frozen = False
             getattr(m, "EPS2").frozen = False
         else:
             getattr(m, add_param).frozen = False
+
+        # sometimes it's neccesary/benefitial to add more
+        # if add_param == "RAJ" or add_param == "DECJ":
+        #     if "DECJ" in Ftests_reversed and Ftests_reversed["DECJ"] < 1e-7:
+        #         print("Adding DECJ as well.")
+        #         getattr(m, "DECJ").frozen = False
+        #     if "RAJ" in Ftests_reversed and Ftests_reversed["RAJ"] < 1e-7:
+        #         print("Adding RAJ as well")
+        #         getattr(m, "RAJ").frozen = False
+
     if args.debug_mode:
         print(f"Ftests = {Ftests}")
 
@@ -960,7 +985,7 @@ def set_F1_lim(args, parfile):
     None
     """
 
-    if args.F1_lim == None:
+    if args.F1_lim is None:
         # for slow pulsars, allow F1 to be up to 1e-12 Hz/s, for medium pulsars, 1e-13 Hz/s, otherwise, 1e-14 Hz/s (recycled pulsars)
         F0 = mb.get_model(parfile).F0.value
 
@@ -976,6 +1001,15 @@ def set_F1_lim(args, parfile):
         # rearranged equation [delta-phase = (F1*span^2)/2], span in seconds.
         # calculates span (in days) for delta-phase to reach 0.35 due to F1
         args.F1_lim = np.sqrt(0.35 * 2 / F1) / 86400.0
+    elif args.F1_lim == "inf":
+        args.F1_lim = np.inf
+
+
+def set_F2_lim(args, parfile):
+    if args.F2_lim is None or args.F2_lim == "inf":
+        args.F2_lim = np.inf
+    # elif:
+    #     pass
 
 
 def quadratic_phase_wrap_checker(
@@ -1224,7 +1258,7 @@ def APTB_argument_parse(parser, argv):
     parser.add_argument(
         "--binary_model",
         help="which binary pulsar model to use.",
-        choices=["ELL1", "ell1"],
+        choices=["ELL1", "ell1", "BT", "bt"],
         default=None,
     )
     parser.add_argument(
@@ -1282,15 +1316,40 @@ def APTB_argument_parse(parser, argv):
         default=None,
     )
     parser.add_argument(
+        "--F2_lim",
+        help="minimum time span before Spindown (F1) can be fit for (default = infinity)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--F1_sign_always",
+        help="require that F1 be either positive or negative (+/-/None) for the entire runtime.",
+        choices=["+", "-", "None"],
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--F1_sign",
-        help="require that F1 be either positive or negative (+/-), or no requirement (None)",
+        help="require that F1 be either positive or negative (+/-/None) at the end of a solution.",
         choices=["+", "-", "None"],
         type=str,
         default="-",
     )
     parser.add_argument(
         "--EPS_lim",
-        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5",
+        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5)",  # TODO may need to update this
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--ECC_lim",
+        help="minimum time span before E can be fit for (default = PB*3)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--OM_lim",
+        help="minimum time span before OM can be fit for (default = PB*3)",
         type=float,
         default=None,
     )
@@ -1387,7 +1446,7 @@ def APTB_argument_parse(parser, argv):
         help="whether to plot the final residuals at the end of each attempt",
         action=argparse.BooleanOptionalAction,
         type=bool,
-        default=True,
+        default=False,
     )
     parser.add_argument(
         "--data_path",
@@ -1413,7 +1472,7 @@ def APTB_argument_parse(parser, argv):
         type=float,
         default=5,
     )
-    parser.add_argument(
+    parser.add_argument( 
         "--multiprocessing",
         help="whether to include multiprocessing or not.",
         action=argparse.BooleanOptionalAction,
@@ -1493,7 +1552,14 @@ def APTB_argument_parse(parser, argv):
         help="Whether to continue searching for more solutions after finding the first one",
         action=argparse.BooleanOptionalAction,
         type=bool,
-        default=False,
+        default=True,
+    )
+    parser.add_argument(
+        "--start_warning",
+        help="Whether to turn on the start_warning if the reduced chisq is > 3 or not.",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=True,
     )
 
     args = parser.parse_args(argv)
@@ -1505,6 +1571,8 @@ def APTB_argument_parse(parser, argv):
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
+    if args.F1_sign_always == "None":
+        args.F1_sign_always = None
     if args.F1_sign == "None":
         args.F1_sign = None
 
@@ -1564,6 +1632,10 @@ def main_for_loop(
     if args.binary_model.lower() == "ell1":
         for param in ["PB", "TASC", "A1"]:
             getattr(m, param).frozen = False
+    elif args.binary_model.lower() == "bt":
+        for param in ["PB", "T0", "A1", "ECC", "OM"]:
+            getattr(m, param).frozen = False
+
     set_F0_lim(args, m)
 
     # a copy, with the flags included
@@ -1640,14 +1712,15 @@ def main_for_loop(
             folder=alg_saves_mask_Path,
             iteration=f"start{start_iter}",
             save_plot=True,
+            mask_with_closest=mask,
         ):
             return "continue"
 
-        # something is certaintly wrong if the reduced chisq is greater that 3 at this stage
+        # something is certaintly wrong if the reduced chisq is greater than 3 at this stage
         chisq_start = f.resids.chi2_reduced
         # pint.residuals.Residuals(t, m).chi2_reduced
         log.info(f"The reduced chisq after the initial fit is {round(chisq_start, 3)}")
-        if chisq_start > 3:
+        if chisq_start > 3 and args.start_warning:
             log.warning(
                 f"The reduced chisq after the initial fit is {round(chisq_start, 3)}"
             )
@@ -1715,7 +1788,7 @@ def main_for_loop(
                 # need to load the next best branch, but need to what happens after quad_phase_wrap_checker first
 
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
-                if f.model is not None:
+                if f.model is None:
                     break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
                 f.toas = t = t_original
@@ -1822,7 +1895,7 @@ def main_for_loop(
             )
             if args.branches:
                 f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
-                if f.model is not None:
+                if f.model is None:
                     break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
             f.toas = t = t_original
@@ -1872,7 +1945,7 @@ def main_for_loop(
         # repeat while True loop
 
     # end of main_for_loop
-    print()
+    print(f"End of mask {mask_number}")
 
 
 def correct_solution_procedure(
@@ -1886,6 +1959,14 @@ def correct_solution_procedure(
     pulsar_name,
     bad_mjds,
 ):
+    # skip this solution
+    if args.F1_sign == "+" and f.model.F1.value < 0:
+        print(f"Solution discarded due to negative F1 ({f.model.F1.value=})!")
+        return
+    elif args.F1_sign == "-" and f.model.F1.value > 0:
+        print(f"Solution discarded due to positive F1 ({f.model.F1.value=})!")
+        return
+
     if not alg_saves_mask_solutions_Path.exists():
         alg_saves_mask_solutions_Path.mkdir()
     # fit again with maxiter=4 for good measure
@@ -1903,6 +1984,9 @@ def correct_solution_procedure(
     if args.binary_model.lower() == "ell1":
         getattr(m_plus, "EPS1").frozen = False
         getattr(m_plus, "EPS2").frozen = False
+    if args.binary_model.lower() == "bt":  # TODO may need to change this
+        getattr(m_plus, "E").frozen = False
+        getattr(m_plus, "OM").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
@@ -1919,11 +2003,11 @@ def correct_solution_procedure(
 
     # save as .fin
     fin_Path = alg_saves_mask_solutions_Path / Path(
-        f"{f.model.PSR.value}_i{iteration}.fin"
+        f"{f.model.PSR.value}_i{iteration}.par"
     )
     with open(fin_Path, "w") as finfile:
         finfile.write(f.model.as_parfile())
-    tim_fin_name = Path(f.model.PSR.value + f"_fin_i{iteration}.tim")
+    tim_fin_name = Path(f.model.PSR.value + f"_i{iteration}.tim")
     f.toas.write_TOA_file(alg_saves_mask_solutions_Path / tim_fin_name)
 
     # plot final residuals if plot_final True
@@ -1947,8 +2031,18 @@ def correct_solution_procedure(
         label="post-fit (phase)",
     )
     chi2_reduced = pint.residuals.Residuals(t, f.model).chi2_reduced
+    if f.model.F1.value:
+        try:
+            P1 = -((f.model.F0.value) ** (-2)) * f.model.F1.value
+            round_numb = int(-np.log10(P1)) + 3
+        except ValueError as e:
+            P1 = 0
+            round_numb = 1
+    else:
+        P1 = 0
+        round_numb = 1
     ax.set_title(
-        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 5)})"
+        f"{m.PSR.value} Final Post-Fit Timing Residuals (reduced chisq={round(chi2_reduced, 4)}, (P1 = {round(P1, round_numb)}))"
     )
     ax.set_xlabel("MJD")
     ax.set_ylabel("Residual (us)")
@@ -1964,7 +2058,7 @@ def correct_solution_procedure(
         plt.show()
 
     fig.savefig(
-        alg_saves_mask_solutions_Path / Path(f"{pulsar_name}_final_i{iteration}.png"),
+        alg_saves_mask_solutions_Path / Path(f"{pulsar_name}_i{iteration}.png"),
         bbox_inches="tight",
     )
     plt.close()
@@ -2080,6 +2174,9 @@ def main():
     alg_saves_Path = Path(f"alg_saves/{pulsar_name}")
     if not alg_saves_Path.exists():
         alg_saves_Path.mkdir(parents=True)
+
+    set_F1_lim(args, parfile)
+    set_F2_lim(args, parfile)
 
     # this sets the maxiter argument for f.fit_toas for fittings done within the while loop
     # (default to 1)
@@ -2201,9 +2298,11 @@ def main():
                 #         print(solution_tree[node_key].data.unJUMPed_clusters)
                 #         break
                 skeleton_tree.show()
-                skeleton_tree.save2file(
-                    solution_tree.save_location / Path("solution_tree.tree")
+                tree_file_name = solution_tree.save_location / Path(
+                    "solution_tree.tree"
                 )
+                skeleton_tree.save2file(tree_file_name)
+
                 print(f"tree depth = {depth}")
                 mask_end_time = time.monotonic()
                 print(
@@ -2216,6 +2315,8 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
+    # raise Exception("stop")
 
     start_time = time.monotonic()
     main()

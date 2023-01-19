@@ -1,0 +1,73 @@
+# Created: 2022-08-09T10:22:24.297432
+# PINT_version: 0.8.8+444.gfdf59b66.dirty
+# User: jackson
+# Host: Jacksons-MacBook-Pro.local
+# OS: macOS-10.16-x86_64-i386-64bit
+# Format: pint
+PSR                            1824-2452N
+EPHEM                               DE421
+CLK                          TT(BIPM2021)
+UNITS                                 TDB
+START              53629.0864521070478472
+FINISH             54573.4752358817048148
+TIMEEPH                              FB90
+T2CMETHOD                        IAU2000B
+DILATEFREQ                              N
+DMDATA                                  N
+NTOA                                   72
+CHI2                                  0.0
+RAJ                     18:24:33.14169692 1 0.00021527822800453534
+DECJ                   -24:52:11.80675184 1 0.06321648701361508305
+PMRA                                  0.0
+PMDEC                                 0.0
+PX                                    0.0
+F0                  298.25172546029579046 1 7.75383441646338695e-09
+F1              -1.4159307334511915028e-14 1 1.785292754702567761e-17
+PEPOCH             59000.0000000000000000
+TZRMJD             59189.3471548598278009
+TZRSITE                                MK
+TZRFRQ                           1283.896
+JUMP            -jump_tim 0        1.0259461754046064 1 3.808365671179116e-05
+JUMP            -jump_tim 1        0.9824039927678234 1 4.471179074079505e-05
+JUMP            -jump_tim 2        0.9823710631854676 1 4.022638719288182e-05
+JUMP            -jump_tim 3        0.8784589186944879 1 2.3506925096806784e-05
+JUMP            -jump_tim 4                       0.0 0 0.0
+JUMP            -jump_tim 5                       0.0 0 0.0
+JUMP            -jump_tim 6                       0.0 0 0.0
+JUMP            -jump_tim 7                       0.0 0 0.0
+JUMP            -jump_tim 8                       0.0 0 0.0
+JUMP            -jump_tim 9                       0.0 0 0.0
+JUMP            -jump_tim 10                       0.0 0 0.0
+JUMP            -jump_tim 11                       0.0 0 0.0
+JUMP            -jump_tim 12                       0.0 0 0.0
+JUMP            -jump_tim 13                       0.0 0 0.0
+JUMP            -jump_tim 14                       0.0 0 0.0
+JUMP            -jump_tim 15                       0.0 0 0.0
+JUMP            -jump_tim 16                       0.0 0 0.0
+JUMP            -jump_tim 17                       0.0 0 0.0
+JUMP            -jump_tim 18                       0.0 0 0.0
+JUMP            -jump_tim 19                       0.0 0 0.0
+JUMP            -jump_tim 20                       0.0 0 0.0
+JUMP            -jump_tim 21                       0.0 0 0.0
+JUMP            -jump_tim 22                       0.0 0 0.0
+JUMP            -jump_tim 23                       0.0 0 0.0
+JUMP            -jump_tim 24                       0.0 0 0.0
+JUMP            -jump_tim 25                       0.0 0 0.0
+JUMP            -jump_tim 26                       0.0 0 0.0
+JUMP            -jump_tim 27                       0.0 0 0.0
+JUMP            -jump_tim 29       -0.3386950748510287 1 4.5147036571255315e-05
+JUMP            -jump_tim 30       -0.3688277684807469 1 4.575233537343318e-05
+JUMP            -jump_tim 31       -0.4593506626951419 1 5.145517017954017e-05
+JUMP            -jump_tim 32       -0.5398358071402733 1 5.8466984125581536e-05
+JUMP            -jump_tim 33       -0.6270009937990504 1 7.253155704142075e-05
+CORRECT_TROPOSPHERE                         N
+PLANET_SHAPIRO                          N
+SOLARN0                              10.0
+SWM                                   0.0
+DM                                  119.3
+BINARY                               ELL1
+PB                 0.19849331585899800873 1 1.9998277719644703088e-09
+A1                    0.04972968396086948 1 3.2429096457389563e-06
+TASC               59194.4673160716407736 1 5.223251245809927497e-05
+EPS1                                  0.0
+EPS2                                  0.0
