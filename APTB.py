@@ -887,8 +887,8 @@ def do_Ftests(f, mask_with_closest, args):
 
     # if span is longer than minimum parameter span and parameter hasn't been added yet, do Ftest to see if parameter should be added
     if "F0" not in f_params and span > args.F0_lim * u.d:
-        Ftest_R, m_plus_p = Ftest_param(m, f, "F0", args)
-        Ftests[Ftest_R] = "F0"
+        Ftest_F0, m_plus_p = Ftest_param(m, f, "F0", args)
+        Ftests[Ftest_F0] = "F0"
 
     if "RAJ" not in f_params and span > args.RAJ_lim * u.d:
         Ftest_R, m_plus_p = Ftest_param(m, f, "RAJ", args)
@@ -916,8 +916,6 @@ def do_Ftests(f, mask_with_closest, args):
                     log.warning(f"Disallowing positive F1! ({m_plus_p.F1.value})")
                     allow_F1 = False
             if allow_F1:
-                # print(4)
-                # print(f"{m_plus_p.F1.value=}")
                 Ftests[Ftest_F] = "F1"
         else:
             Ftests[Ftest_F] = "F1"
@@ -969,6 +967,10 @@ def do_Ftests(f, mask_with_closest, args):
 def set_F0_lim(args, m):
     if args.F0_lim is not None:
         m.F0.frozen = True
+    else:
+        m.F0.frozen = False  # NOTE or TODO: this would override the users potential wish to not fit for F0 by default.
+        # As long as people know to SPECIFY --F0_lim 0 rather than keep the default, the this
+        # shouldn't be an issue.
 
 
 def set_F1_lim(args, parfile):
@@ -1293,7 +1295,7 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--F0_lim",
-        help="minimum time span before Spindown (F0) can be fit for (default = fit for F0 immediately)",
+        help="minimum time span (days) before Spindown (F0) can be fit for (default = fit for F0 immediately)",
         type=float,
         default=None,
     )
@@ -1472,7 +1474,7 @@ def APTB_argument_parse(parser, argv):
         type=float,
         default=5,
     )
-    parser.add_argument( 
+    parser.add_argument(
         "--multiprocessing",
         help="whether to include multiprocessing or not.",
         action=argparse.BooleanOptionalAction,
@@ -1565,9 +1567,10 @@ def APTB_argument_parse(parser, argv):
     args = parser.parse_args(argv)
 
     if args.branches and not args.check_phase_wraps:
-        raise argparse.ArgumentTypeError(
-            "Branches only works if phase wraps are being checked."
-        )
+        args.branches = False
+        # raise argparse.ArgumentTypeError(
+        #     "Branches only works if phase wraps are being checked."
+        # )
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
@@ -2315,8 +2318,6 @@ def main():
 
 if __name__ == "__main__":
     import sys
-
-    # raise Exception("stop")
 
     start_time = time.monotonic()
     main()
