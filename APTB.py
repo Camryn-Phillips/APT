@@ -758,7 +758,7 @@ def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
 
     # set the y limit to be just above and below the max and min points
     yrange = abs(max(r) - min(r))
-    ax.set_ylim(max(r) + 0.1 * yrange, min(r) - 0.1 * yrange)
+    ax.set_ylim(min(r) - 0.1 * yrange, max(r) + 0.1 * yrange)
 
     # scale to the edges of the points or the edges of the random models, whichever is smaller
     width = max(mjds) - min(mjds)
@@ -1690,7 +1690,9 @@ def main_for_loop(
         ## f.model = m
         print("BEFORE:", f.get_fitparams())
         # changing maxiter here may have some effects
-        print(f.fit_toas(maxiter=2))
+        print(
+            f.fit_toas(maxiter=4)
+        )  # NOTE: need to investigate this ... this could make the base reduced chisq different than it should be
 
         print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
         print("RMS in phase is", f.resids.phase_resids.std())
@@ -2305,6 +2307,9 @@ def main():
                     "solution_tree.tree"
                 )
                 skeleton_tree.save2file(tree_file_name)
+                with open(tree_file_name, "a") as file:
+                    file.write("\n")
+                    file.write(str(solution_tree.blueprint))
 
                 print(f"tree depth = {depth}")
                 mask_end_time = time.monotonic()
