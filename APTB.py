@@ -1095,11 +1095,15 @@ def quadratic_phase_wrap_checker(
                     raise e
 
     print(f"chisq_samples = {chisq_samples}")
-    min_wrap_vertex = round(
-        (b / 2)
-        * (chisq_samples[-b] - chisq_samples[b])
-        / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
-    )
+    if len(chisq_samples) < 3:
+        log.debug(f"chisq sampling failed, setting min_wrap_vertex = 0")
+        min_wrap_vertex = 0
+    else:
+        min_wrap_vertex = round(
+            (b / 2)
+            * (chisq_samples[-b] - chisq_samples[b])
+            / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
+        )
     # check +1, 0, and -1 wrap from min_wrap_vertex just to be safe
     # TODO: an improvement would be for APTB to continue down each path
     # of +1, 0, and -1. However, knowing when to prune a branch
@@ -1989,9 +1993,6 @@ def correct_solution_procedure(
     if args.binary_model.lower() == "ell1":
         getattr(m_plus, "EPS1").frozen = False
         getattr(m_plus, "EPS2").frozen = False
-    if args.binary_model.lower() == "bt":  # TODO may need to change this
-        getattr(m_plus, "E").frozen = False
-        getattr(m_plus, "OM").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
@@ -2180,6 +2181,10 @@ def main():
     if not alg_saves_Path.exists():
         alg_saves_Path.mkdir(parents=True)
 
+    if args.RAJ_lim == "inf":
+        args.RAJ_lim = np.inf
+    if args.DECJ_lim == "inf":
+        args.DECJ_lim = np.inf
     set_F1_lim(args, parfile)
     set_F2_lim(args, parfile)
 
