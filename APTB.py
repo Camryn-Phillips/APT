@@ -231,7 +231,7 @@ class CustomTree(treelib.Tree):
                 break
             elif current_parent_id == "Root":
                 # program is done
-                return None, None
+                return (None, None), " "
 
             new_parent = self.parent(current_parent_id)
             self.prune(current_parent_id, args)
