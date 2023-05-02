@@ -1570,6 +1570,13 @@ def APTB_argument_parse(parser, argv):
         type=bool,
         default=True,
     )
+    parser.add_argument(
+        "--final_fit_everything",
+        help="Whether to fit for the main parameters after phase connecting every cluster.",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=True,
+    )
 
     args = parser.parse_args(argv)
 
@@ -1996,13 +2003,19 @@ def correct_solution_procedure(
 
     # try fitting with any remaining unfit parameters included and see if the fit is better for it
     m_plus = deepcopy(m)
-    getattr(m_plus, "RAJ").frozen = False
-    getattr(m_plus, "DECJ").frozen = False
-    getattr(m_plus, "F1").frozen = False
 
-    if args.binary_model.lower() == "ell1":
-        getattr(m_plus, "EPS1").frozen = False
-        getattr(m_plus, "EPS2").frozen = False
+    if args.final_fit_everything:
+        getattr(m_plus, "RAJ").frozen = False
+        getattr(m_plus, "DECJ").frozen = False
+        getattr(m_plus, "F1").frozen = False
+
+        if args.binary_model.lower() == "ell1":
+            getattr(m_plus, "EPS1").frozen = False
+            getattr(m_plus, "EPS2").frozen = False
+
+        if args.binary_model.lower() == "bt":
+            getattr(m_plus, "ECC").frozen = False
+            getattr(m_plus, "OM").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine

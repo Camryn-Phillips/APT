@@ -96,6 +96,7 @@ def skeleton_tree_creator(blueprint, iteration_dict=None):
     """
     tree = treelib.Tree()
     tree.create_node("Root", "Root")
+    U_counter = 0
     if iteration_dict:
         for parent, child in blueprint:
             # while tree.contains(child):
@@ -103,12 +104,10 @@ def skeleton_tree_creator(blueprint, iteration_dict=None):
             if parent != "Root":
                 i_index = parent.index("i")
                 d_index = parent.index("d")
-                parent = (
-                    f"i{iteration_dict.get(parent, 'U')}_{parent[d_index:i_index-1]}"
-                )
+                parent = f"i{iteration_dict.get(parent, f'U{(U_counter:=U_counter+1)}')}_{parent[d_index:i_index-1]}"
             i_index = child.index("i")
             d_index = child.index("d")
-            child = f"i{iteration_dict.get(child, 'U')}_{child[d_index:i_index-1]}"
+            child = f"i{iteration_dict.get(child, f'U{(U_counter:=U_counter+1)}')}_{child[d_index:i_index-1]}"
             tree.create_node(child, child, parent=parent)
     else:
         for parent, child in blueprint:
