@@ -10,7 +10,6 @@ import pint.random_models
 from pint.phase import Phase
 from pint.fitter import WLSFitter
 from copy import deepcopy
-from collections import OrderedDict
 from astropy import log
 import astropy.units as u
 import numpy as np

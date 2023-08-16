@@ -10,8 +10,6 @@ import pint.random_models
 from pint.phase import Phase
 from pint.fitter import WLSFitter
 from copy import deepcopy
-from collections import OrderedDict
-from astropy import log
 import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
@@ -1255,7 +1253,6 @@ def quadratic_phase_wrap_checker(
 
 
 def APTB_argument_parse(parser, argv):
-
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
     parser.add_argument(
@@ -1326,13 +1323,13 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--F1_sign_always",
-        help="require that F1 be either positive or negative (+/-/None) for the entire runtime.",
+        help="require that F1 be either positive or negative (+/-/None) for the entire run time.",
         choices=["+", "-", "None"],
         type=str,
         default=None,
     )
     parser.add_argument(
-        "--F1_sign",
+        "--F1_sign_solution",
         help="require that F1 be either positive or negative (+/-/None) at the end of a solution.",
         choices=["+", "-", "None"],
         type=str,
@@ -1590,8 +1587,8 @@ def APTB_argument_parse(parser, argv):
         raise NotImplementedError("depth_puruse")
     if args.F1_sign_always == "None":
         args.F1_sign_always = None
-    if args.F1_sign == "None":
-        args.F1_sign = None
+    if args.F1_sign_solution == "None":
+        args.F1_sign_solution = None
 
     return args, parser
 
@@ -1986,10 +1983,10 @@ def correct_solution_procedure(
     bad_mjds,
 ):
     # skip this solution
-    if args.F1_sign == "+" and f.model.F1.value < 0:
+    if args.F1_sign_solution == "+" and f.model.F1.value < 0:
         print(f"Solution discarded due to negative F1 ({f.model.F1.value=})!")
         return
-    elif args.F1_sign == "-" and f.model.F1.value > 0:
+    elif args.F1_sign_solution == "-" and f.model.F1.value > 0:
         print(f"Solution discarded due to positive F1 ({f.model.F1.value=})!")
         return
 
