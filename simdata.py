@@ -837,7 +837,6 @@ def main(argv=None):
     iter = args.iter
 
     for num in range(maxnum + 1, maxnum + 1 + iter):
-
         if args.name == None:
             sol_name = f"fake_{num}sol.par"
             par_name = f"fake_{num}.par"
@@ -854,7 +853,7 @@ def main(argv=None):
             args, sol_name
         )
 
-        # wrie timfile
+        # write timfile
         ntoa2, density = write_timfile(
             args,
             f0_save,

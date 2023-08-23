@@ -321,6 +321,8 @@ class NodeData:
         return self.validated
 
     def A1_validator(self, args):
+        if args.binary_model is None:
+            return True
         A1 = self.m.A1.value
         return_value = True if A1 >= 0 else False
 
@@ -689,6 +691,7 @@ def save_state(
             iteration,
             fig,
             ax,
+            args.JUMPs_in_fit_params_list,
             mask_with_closest=mask_with_closest,
         )
 
@@ -701,7 +704,9 @@ def save_state(
     return True
 
 
-def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
+def plot_plain(
+    f, mjds, t, m, iteration, fig, ax, JUMPs_in_fit_params_list, mask_with_closest=None
+):
     """
     A helper function for save_state. Graphs the time & phase residuals.
     Including mask_with_closests colors red the TOAs not JUMPed.
@@ -745,7 +750,8 @@ def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
     if f:
         for param in f.get_fitparams().keys():
             if "JUMP" in str(param):
-                fitparams += f"J{str(param)[4:]} "
+                if JUMPs_in_fit_params_list:
+                    fitparams += f"J{str(param)[4:]} "
             else:
                 fitparams += str(param) + " "
 
@@ -921,9 +927,10 @@ def do_Ftests(f, mask_with_closest, args):
         Ftest_D, m_plus_p = Ftest_param(m, f, "F2", args)
         Ftests[Ftest_D] = "F2"
 
-    m, t, f, f_params, span, Ftests, args = APTB_extension.do_Ftests_binary(
-        m, t, f, f_params, span, Ftests, args
-    )
+    if args.binary_model is not None:
+        m, t, f, f_params, span, Ftests, args = APTB_extension.do_Ftests_binary(
+            m, t, f, f_params, span, Ftests, args
+        )
 
     # remove possible boolean elements from Ftest returning False if chi2 increases
     Ftests_reversed = {i: j for j, i in Ftests.items()}
@@ -1574,6 +1581,13 @@ def APTB_argument_parse(parser, argv):
         type=bool,
         default=True,
     )
+    parser.add_argument(
+        "--JUMPs_in_fit_params_list",
+        help="Whether to fit for the main parameters after phase connecting every cluster.",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=False,
+    )
 
     args = parser.parse_args(argv)
 
@@ -1640,18 +1654,20 @@ def main_for_loop(
     )
     t.compute_pulse_numbers(m)
     args.binary_model = m.BINARY.value
-    args = APTB_extension.set_binary_pars_lim(m, args)
+    if args.binary_model is not None:
+        args = APTB_extension.set_binary_pars_lim(m, args)
 
     # start fitting for main binary parameters immediately
-    if args.binary_model.lower() == "ell1":
-        for param in ["PB", "TASC", "A1"]:
-            getattr(m, param).frozen = False
-    elif args.binary_model.lower() == "bt":
-        for param in ["PB", "T0", "A1"]:
-            getattr(m, param).frozen = False
-        for param in ["ECC", "OM"]:
-            if getattr(args, f"{param}_lim") is None:
+    if args.binary_model is not None:
+        if args.binary_model.lower() == "ell1":
+            for param in ["PB", "TASC", "A1"]:
                 getattr(m, param).frozen = False
+        elif args.binary_model.lower() == "bt":
+            for param in ["PB", "T0", "A1"]:
+                getattr(m, param).frozen = False
+            for param in ["ECC", "OM"]:
+                if getattr(args, f"{param}_lim") is None:
+                    getattr(m, param).frozen = False
 
     set_F0_lim(args, m)
 
@@ -2006,13 +2022,14 @@ def correct_solution_procedure(
         getattr(m_plus, "DECJ").frozen = False
         getattr(m_plus, "F1").frozen = False
 
-        if args.binary_model.lower() == "ell1":
-            getattr(m_plus, "EPS1").frozen = False
-            getattr(m_plus, "EPS2").frozen = False
+        if args.binary_model is not None:
+            if args.binary_model.lower() == "ell1":
+                getattr(m_plus, "EPS1").frozen = False
+                getattr(m_plus, "EPS2").frozen = False
 
-        if args.binary_model.lower() == "bt":
-            getattr(m_plus, "ECC").frozen = False
-            getattr(m_plus, "OM").frozen = False
+            elif args.binary_model.lower() == "bt":
+                getattr(m_plus, "ECC").frozen = False
+                getattr(m_plus, "OM").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
