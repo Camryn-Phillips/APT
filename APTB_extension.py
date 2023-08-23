@@ -10,7 +10,6 @@ import pint.random_models
 from pint.phase import Phase
 from pint.fitter import WLSFitter
 from copy import deepcopy
-from collections import OrderedDict
 from astropy import log
 import astropy.units as u
 import numpy as np
@@ -34,7 +33,7 @@ file that will do the equivalent process. This also serves to prevent clutter in
 
 
 def set_binary_pars_lim(m, args):
-    if args.binary_model.lower() == "ell1" and not args.EPS_lim:
+    if args.binary_model.lower() == "ell1" and args.EPS_lim is None:
         if args.EPS_lim == "inf":
             args.EPS_lim = np.inf
         else:
@@ -42,18 +41,17 @@ def set_binary_pars_lim(m, args):
             args.EPS_lim = m.PB.value * 5
 
     elif args.binary_model.lower() == "bt":
-        pass
-        # if args.ECC_lim:
-        #     if args.ECC_lim == "inf":
-        #         args.ECC_lim = np.inf
-        # else:
-        #     args.ECC_lim = m.PB.value * 3
+        if args.ECC_lim:
+            if args.ECC_lim == "inf":
+                args.ECC_lim = np.inf
+        else:
+            args.ECC_lim = 0
 
-        # if args.OM_lim:
-        #     if args.OM_lim == "inf":
-        #         args.OM_lim = np.inf
-        # else:
-        #     args.OM_lim = m.PB.value * 3
+        if args.OM_lim:
+            if args.OM_lim == "inf":
+                args.OM_lim = np.inf
+        else:
+            args.OM_lim = 0
 
     return args
 
@@ -73,18 +71,17 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
         #     Ftests[Ftest_F] = "EPS2"
 
     elif args.binary_model.lower() == "bt":
-        pass
-        # for param in ["ECC", "OM"]:
-        #     if (
-        #         param not in f_params and span > getattr(args, f"{param}_lim") * u.d
-        #     ):  # args.F0_lim * u.d:
-        #         Ftest_R, m_plus_p = APTB.Ftest_param(m, f, param, args)
-        #         Ftests[Ftest_R] = param
+        for param in ["ECC", "OM"]:
+            if (
+                param not in f_params and span > getattr(args, f"{param}_lim") * u.d
+            ):  # args.F0_lim * u.d:
+                Ftest_R, m_plus_p = APTB.Ftest_param(m, f, param, args)
+                Ftests[Ftest_R] = param
 
     return m, t, f, f_params, span, Ftests, args
 
 
-def skeleton_tree_creator(blueprint):
+def skeleton_tree_creator(blueprint, iteration_dict=None):
     """
     This creates what the tree looks like, without any of the data attributes.
 
@@ -98,8 +95,22 @@ def skeleton_tree_creator(blueprint):
     """
     tree = treelib.Tree()
     tree.create_node("Root", "Root")
-    for parent, child in blueprint:
-        # while tree.contains(child):
-        #     child += child[-1]
-        tree.create_node(child, child, parent=parent)
+    U_counter = 0
+    if iteration_dict:
+        for parent, child in blueprint:
+            # while tree.contains(child):
+            #     child += child[-1]
+            if parent != "Root":
+                i_index = parent.index("i")
+                d_index = parent.index("d")
+                parent = f"i{iteration_dict.get(parent, f'U{(U_counter:=U_counter+1)}')}_{parent[d_index:i_index-1]}"
+            i_index = child.index("i")
+            d_index = child.index("d")
+            child = f"i{iteration_dict.get(child, f'U{(U_counter:=U_counter+1)}')}_{child[d_index:i_index-1]}"
+            tree.create_node(child, child, parent=parent)
+    else:
+        for parent, child in blueprint:
+            # while tree.contains(child):
+            #     child += child[-1]
+            tree.create_node(child, child, parent=parent)
     return tree

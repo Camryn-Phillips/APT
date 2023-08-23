@@ -10,8 +10,6 @@ import pint.random_models
 from pint.phase import Phase
 from pint.fitter import WLSFitter
 from copy import deepcopy
-from collections import OrderedDict
-from astropy import log
 import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,7 +39,9 @@ class CustomTree(treelib.Tree):
         node_class=None,
         identifier=None,
         blueprint=None,
+        explored_blueprint=None,
         save_location=Path.cwd(),
+        node_iteration_dict={"Root": 0},
     ):
         super().__init__(tree, deep, node_class, identifier)
 
@@ -51,7 +51,10 @@ class CustomTree(treelib.Tree):
         # The python docs recommends doing default empty lists like this
         if blueprint is None:
             self.blueprint = []
+        if explored_blueprint is None:
+            self.explored_blueprint = []
         self.save_location = save_location
+        self.node_iteration_dict = node_iteration_dict
 
     def branch_creator(
         self,
@@ -204,7 +207,7 @@ class CustomTree(treelib.Tree):
         order = [branches[chisq] for chisq in chisq_list]
         self[current_parent_id].order = order
 
-    def node_selector(self, f, args):
+    def node_selector(self, f, args, iteration):
         """
         Selects the next branch to take based on the order instance of the parent. Also prunes dead branches.
 
@@ -226,7 +229,7 @@ class CustomTree(treelib.Tree):
                 break
             elif current_parent_id == "Root":
                 # program is done
-                return None, None
+                return (None, None), " "
 
             new_parent = self.parent(current_parent_id)
             self.prune(current_parent_id, args)
@@ -236,10 +239,25 @@ class CustomTree(treelib.Tree):
         # selects the desired branch and also removes it from the order list
         selected_node_id = current_parent_node.order.pop(0)
         selected_node = self[selected_node_id]
+        # if
+        # explored_name = f"i{iteration}_{selected_node_id[selected_node_id.index('d'):]}"
+        # self.explored_blueprint.append(
+        #     (
+        #         self.current_parent_id,
+        #         explored_name,
+        #     )
+        # )
         self.current_parent_id = selected_node_id
+        self.node_iteration_dict[selected_node_id] = iteration
+
+        i_index = selected_node_id.index("i")
+        d_index = selected_node_id.index("d")
+        explored_name = f"i{iteration}_{selected_node_id[d_index:i_index-1]}"
+        # explored_name = f"I{iteration}_{selected_node_id}"
+        # self.explored_blueprint.append((, explored_name))
 
         # m, unJUMPed_clusters = selected_node.data
-        return selected_node.data
+        return selected_node.data, explored_name
 
     def prune(self, id_to_prune, args):
         """
@@ -619,6 +637,7 @@ def save_state(
     save_plot=False,
     show_plot=False,
     mask_with_closest=None,
+    explored_name=None,
     **kwargs,
 ):
     """
@@ -650,35 +669,14 @@ def save_state(
     """
     if not args.save_state:
         return True
-
+    if explored_name:
+        iteration = explored_name
     m_copy = deepcopy(m)
     t = deepcopy(t)
 
     t.write_TOA_file(folder / Path(f"{pulsar_name}_{iteration}.tim"))
-    try:
-        with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
-            file.write(m_copy.as_parfile())
-    except ValueError as e:
-        if str(e)[:47] != "Projected semi-major axis A1 cannot be negative":
-            raise e
-        raise e
-        # TODO decide what to do if A1 is negative:
-        response = input(
-            f"\nA1 detected to be negative! Should APTB attempt to correct it? (y/n)"
-        )
-        if response.lower() != "y":
-            print(e)
-            print("Moving onto next mask")
-            return False
-        print(f"(A1 = {m_copy.A1.value} and TASC = {m_copy.TASC.value})\n")
-        if args.binary_model.lower() == "ell1":
-            # the fitter cannot distinguish between a sinusoid and the negative
-            # sinusoid shifted by a half period
-            m.A1.value = -m.A1.value
-            m.TASC.value = m.TASC.value + m.PB.value / 2
-            m_copy = deepcopy(m)
-            with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
-                file.write(m_copy.as_parfile())
+    with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
+        file.write(m_copy.as_parfile())
 
     if save_plot or show_plot:
         fig, ax = plt.subplots(figsize=(12, 7))
@@ -758,7 +756,7 @@ def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
 
     # set the y limit to be just above and below the max and min points
     yrange = abs(max(r) - min(r))
-    ax.set_ylim(max(r) + 0.1 * yrange, min(r) - 0.1 * yrange)
+    ax.set_ylim(min(r) - 0.1 * yrange, max(r) + 0.1 * yrange)
 
     # scale to the edges of the points or the edges of the random models, whichever is smaller
     width = max(mjds) - min(mjds)
@@ -878,7 +876,6 @@ def do_Ftests(f, mask_with_closest, args):
 
     Ftests = dict()
     f_params = []
-    # TODO: need to take into account if param isn't setup in model yet
 
     # make list of already fit parameters
     for param in m.params:
@@ -887,8 +884,8 @@ def do_Ftests(f, mask_with_closest, args):
 
     # if span is longer than minimum parameter span and parameter hasn't been added yet, do Ftest to see if parameter should be added
     if "F0" not in f_params and span > args.F0_lim * u.d:
-        Ftest_R, m_plus_p = Ftest_param(m, f, "F0", args)
-        Ftests[Ftest_R] = "F0"
+        Ftest_F0, m_plus_p = Ftest_param(m, f, "F0", args)
+        Ftests[Ftest_F0] = "F0"
 
     if "RAJ" not in f_params and span > args.RAJ_lim * u.d:
         Ftest_R, m_plus_p = Ftest_param(m, f, "RAJ", args)
@@ -916,8 +913,6 @@ def do_Ftests(f, mask_with_closest, args):
                     log.warning(f"Disallowing positive F1! ({m_plus_p.F1.value})")
                     allow_F1 = False
             if allow_F1:
-                # print(4)
-                # print(f"{m_plus_p.F1.value=}")
                 Ftests[Ftest_F] = "F1"
         else:
             Ftests[Ftest_F] = "F1"
@@ -936,8 +931,11 @@ def do_Ftests(f, mask_with_closest, args):
 
     # if no Ftests performed, continue on without change
     if not Ftests_keys:
-        if span > 100 * u.d:
-            print("F0, RAJ, DECJ, and F1 have all been added")
+        # if span > 100 * u.d:
+        log.debug(
+            f"No F-tests conducted. Parameters fit for so far, not including jumps, are {[param for param in f_params if not 'JUMP' in param]}"
+        )
+        # print("F0, RAJ, DECJ, and F1 have all been added")
 
     # if smallest Ftest of those calculated is less than the given limit, add that parameter to the model. Otherwise add no parameters
     elif min(Ftests_keys) < args.Ftest_lim:
@@ -969,6 +967,8 @@ def do_Ftests(f, mask_with_closest, args):
 def set_F0_lim(args, m):
     if args.F0_lim is not None:
         m.F0.frozen = True
+    else:
+        m.F0.frozen = False
 
 
 def set_F1_lim(args, parfile):
@@ -1093,18 +1093,18 @@ def quadratic_phase_wrap_checker(
                     raise e
 
     print(f"chisq_samples = {chisq_samples}")
-    min_wrap_vertex = round(
-        (b / 2)
-        * (chisq_samples[-b] - chisq_samples[b])
-        / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
-    )
-    # check +1, 0, and -1 wrap from min_wrap_vertex just to be safe
-    # TODO: an improvement would be for APTB to continue down each path
-    # of +1, 0, and -1. However, knowing when to prune a branch
-    # would have to implemented. I should view how Paulo does it.
+    if len(chisq_samples) < 3:
+        log.debug(f"chisq sampling failed, setting min_wrap_vertex = 0")
+        min_wrap_vertex = 0
+    else:
+        min_wrap_vertex = round(
+            (b / 2)
+            * (chisq_samples[-b] - chisq_samples[b])
+            / (chisq_samples[b] + chisq_samples[-b] - 2 * chisq_samples[0])
+        )
     m_wrap_dict = {}
     chisq_wrap = {}
-
+    # check +1, 0, and -1 wrap from min_wrap_vertex just to be safe
     # default is range(-1, 2) (i.e. [-1, 0, 1])
     for wrap in range(-args.vertex_wrap, args.vertex_wrap + 1):
         min_wrap_plusminus = min_wrap_vertex + wrap
@@ -1163,18 +1163,19 @@ def quadratic_phase_wrap_checker(
             mask_with_closest=mask_with_closest,
             wraps=True,
         )
-        save_state(
-            f,
-            f.model,
-            t,
-            t.get_mjds().value,
-            pulsar_name,
-            args=args,
-            folder=folder,
-            iteration=f"{iteration}_wrap_checker{wrap_checker_iteration}",
-            save_plot=True,
-            mask_with_closest=mask_with_closest,
-        )
+        if args.pre_save_state:
+            save_state(
+                f,
+                f.model,
+                t,
+                t.get_mjds().value,
+                pulsar_name,
+                args=args,
+                folder=folder,
+                iteration=f"{iteration}_wrap_checker{wrap_checker_iteration}",
+                save_plot=True,
+                mask_with_closest=mask_with_closest,
+            )
         return quadratic_phase_wrap_checker(
             f,
             mask_with_closest,
@@ -1252,7 +1253,6 @@ def quadratic_phase_wrap_checker(
 
 
 def APTB_argument_parse(parser, argv):
-
     parser.add_argument("parfile", help="par file to read model from")
     parser.add_argument("timfile", help="tim file to read toas from")
     parser.add_argument(
@@ -1293,7 +1293,7 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--F0_lim",
-        help="minimum time span before Spindown (F0) can be fit for (default = fit for F0 immediately)",
+        help="minimum time span (days) before Spindown (F0) can be fit for (default = fit for F0 immediately)",
         type=float,
         default=None,
     )
@@ -1323,13 +1323,13 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--F1_sign_always",
-        help="require that F1 be either positive or negative (+/-/None) for the entire runtime.",
+        help="require that F1 be either positive or negative (+/-/None) for the entire run time.",
         choices=["+", "-", "None"],
         type=str,
         default=None,
     )
     parser.add_argument(
-        "--F1_sign",
+        "--F1_sign_solution",
         help="require that F1 be either positive or negative (+/-/None) at the end of a solution.",
         choices=["+", "-", "None"],
         type=str,
@@ -1337,7 +1337,7 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--EPS_lim",
-        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5)",  # TODO may need to update this
+        help="minimum time span before EPS1 and EPS2 can be fit for (default = PB*5)",
         type=float,
         default=None,
     )
@@ -1472,7 +1472,7 @@ def APTB_argument_parse(parser, argv):
         type=float,
         default=5,
     )
-    parser.add_argument( 
+    parser.add_argument(
         "--multiprocessing",
         help="whether to include multiprocessing or not.",
         action=argparse.BooleanOptionalAction,
@@ -1514,11 +1514,17 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--save_state",
-        help="Whether to take the time to save state. Setting to false could lower runtime, however making\n"
-        + "diagnosing issues very diffuclt.",
+        help="Whether to take the time to save state. Setting to False could lower runtime, however making diagnosing issues very diffuclt.",
         action=argparse.BooleanOptionalAction,
         type=bool,
         default=True,
+    )
+    parser.add_argument(
+        "--pre_save_state",
+        help="Whether to save pre-fit and wrap_checker states. False by default because the ordinary states are usually sufficient.",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=False,
     )
     parser.add_argument(
         "--branches",
@@ -1561,20 +1567,28 @@ def APTB_argument_parse(parser, argv):
         type=bool,
         default=True,
     )
+    parser.add_argument(
+        "--final_fit_everything",
+        help="Whether to fit for the main parameters after phase connecting every cluster.",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=True,
+    )
 
     args = parser.parse_args(argv)
 
     if args.branches and not args.check_phase_wraps:
-        raise argparse.ArgumentTypeError(
-            "Branches only works if phase wraps are being checked."
-        )
+        args.branches = False
+        # raise argparse.ArgumentTypeError(
+        #     "Branches only works if phase wraps are being checked."
+        # )
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
         raise NotImplementedError("depth_puruse")
     if args.F1_sign_always == "None":
         args.F1_sign_always = None
-    if args.F1_sign == "None":
-        args.F1_sign = None
+    if args.F1_sign_solution == "None":
+        args.F1_sign_solution = None
 
     return args, parser
 
@@ -1633,8 +1647,11 @@ def main_for_loop(
         for param in ["PB", "TASC", "A1"]:
             getattr(m, param).frozen = False
     elif args.binary_model.lower() == "bt":
-        for param in ["PB", "T0", "A1", "ECC", "OM"]:
+        for param in ["PB", "T0", "A1"]:
             getattr(m, param).frozen = False
+        for param in ["ECC", "OM"]:
+            if getattr(args, f"{param}_lim") is None:
+                getattr(m, param).frozen = False
 
     set_F0_lim(args, m)
 
@@ -1687,7 +1704,9 @@ def main_for_loop(
         ## f.model = m
         print("BEFORE:", f.get_fitparams())
         # changing maxiter here may have some effects
-        print(f.fit_toas(maxiter=2))
+        print(
+            f.fit_toas(maxiter=4)
+        )  # NOTE: need to investigate this ... this could make the base reduced chisq different than it should be
 
         print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
         print("RMS in phase is", f.resids.phase_resids.std())
@@ -1787,7 +1806,8 @@ def main_for_loop(
             if args.find_all_solutions and args.branches:
                 # need to load the next best branch, but need to what happens after quad_phase_wrap_checker first
 
-                f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
+                data, explored_name = solution_tree.node_selector(f, args, iteration)
+                f.model, unJUMPed_clusters = data
                 if f.model is None:
                     break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
@@ -1811,6 +1831,7 @@ def main_for_loop(
                     iteration=f"i{iteration}_d{solution_tree.current_depth()}_c{closest_cluster}",
                     save_plot=True,
                     mask_with_closest=mask_with_closest,
+                    explored_name=explored_name,
                 ):
                     skip_mask = True
                     break
@@ -1861,7 +1882,8 @@ def main_for_loop(
             mask_with_closest=mask_with_closest,
             wraps=True,
         )
-        if not save_state(
+        # If args.pre_save_state is False (default) then the save will not be saved
+        if args.pre_save_state and not save_state(
             f,
             f.model,
             t,
@@ -1876,7 +1898,6 @@ def main_for_loop(
             skip_mask = True
             break
 
-        ########f = pint.fitter.WLSFitter(t, m)
         if args.check_phase_wraps:
             t_original = deepcopy(t)
             f.model, mask_with_closest = quadratic_phase_wrap_checker(
@@ -1894,7 +1915,8 @@ def main_for_loop(
                 unJUMPed_clusters=unJUMPed_clusters,
             )
             if args.branches:
-                f.model, unJUMPed_clusters = solution_tree.node_selector(f, args)
+                data, explored_name = solution_tree.node_selector(f, args, iteration)
+                f.model, unJUMPed_clusters = data
                 if f.model is None:
                     break
                 mask_with_closest = np.isin(f.toas.table["clusters"], unJUMPed_clusters)
@@ -1938,6 +1960,7 @@ def main_for_loop(
             iteration=f"i{iteration}_d{solution_tree.current_depth()}_c{closest_cluster}",
             save_plot=True,
             mask_with_closest=mask_with_closest,
+            explored_name=explored_name,
         ):
             skip_mask = True
             break
@@ -1960,10 +1983,10 @@ def correct_solution_procedure(
     bad_mjds,
 ):
     # skip this solution
-    if args.F1_sign == "+" and f.model.F1.value < 0:
+    if args.F1_sign_solution == "+" and f.model.F1.value < 0:
         print(f"Solution discarded due to negative F1 ({f.model.F1.value=})!")
         return
-    elif args.F1_sign == "-" and f.model.F1.value > 0:
+    elif args.F1_sign_solution == "-" and f.model.F1.value > 0:
         print(f"Solution discarded due to positive F1 ({f.model.F1.value=})!")
         return
 
@@ -1977,16 +2000,19 @@ def correct_solution_procedure(
 
     # try fitting with any remaining unfit parameters included and see if the fit is better for it
     m_plus = deepcopy(m)
-    getattr(m_plus, "RAJ").frozen = False
-    getattr(m_plus, "DECJ").frozen = False
-    getattr(m_plus, "F1").frozen = False
 
-    if args.binary_model.lower() == "ell1":
-        getattr(m_plus, "EPS1").frozen = False
-        getattr(m_plus, "EPS2").frozen = False
-    if args.binary_model.lower() == "bt":  # TODO may need to change this
-        getattr(m_plus, "E").frozen = False
-        getattr(m_plus, "OM").frozen = False
+    if args.final_fit_everything:
+        getattr(m_plus, "RAJ").frozen = False
+        getattr(m_plus, "DECJ").frozen = False
+        getattr(m_plus, "F1").frozen = False
+
+        if args.binary_model.lower() == "ell1":
+            getattr(m_plus, "EPS1").frozen = False
+            getattr(m_plus, "EPS2").frozen = False
+
+        if args.binary_model.lower() == "bt":
+            getattr(m_plus, "ECC").frozen = False
+            getattr(m_plus, "OM").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
@@ -2175,6 +2201,10 @@ def main():
     if not alg_saves_Path.exists():
         alg_saves_Path.mkdir(parents=True)
 
+    if args.RAJ_lim == "inf":
+        args.RAJ_lim = np.inf
+    if args.DECJ_lim == "inf":
+        args.DECJ_lim = np.inf
     set_F1_lim(args, parfile)
     set_F2_lim(args, parfile)
 
@@ -2288,9 +2318,13 @@ def main():
                     + "moving onto the next cluster."
                 )
             finally:
-                print(solution_tree.blueprint)
+                print(solution_tree.blueprint, "\n")
+                # print(solution_tree.explored_blueprint)
                 skeleton_tree = APTB_extension.skeleton_tree_creator(
                     solution_tree.blueprint
+                )
+                explored_tree = APTB_extension.skeleton_tree_creator(
+                    solution_tree.blueprint, solution_tree.node_iteration_dict
                 )
                 depth = skeleton_tree.depth()
                 # for node_key in skeleton_tree.nodes:
@@ -2301,7 +2335,18 @@ def main():
                 tree_file_name = solution_tree.save_location / Path(
                     "solution_tree.tree"
                 )
+                explored_tree_file_name = solution_tree.save_location / Path(
+                    "explored_solution_tree.tree"
+                )
                 skeleton_tree.save2file(tree_file_name)
+                explored_tree.save2file(explored_tree_file_name)
+
+                with open(tree_file_name, "a") as file:
+                    file.write("\n")
+                    file.write(str(solution_tree.blueprint))
+                with open(explored_tree_file_name, "a") as file:
+                    file.write("\n")
+                    file.write(str(solution_tree.node_iteration_dict))
 
                 print(f"tree depth = {depth}")
                 mask_end_time = time.monotonic()
@@ -2315,8 +2360,6 @@ def main():
 
 if __name__ == "__main__":
     import sys
-
-    # raise Exception("stop")
 
     start_time = time.monotonic()
     main()
