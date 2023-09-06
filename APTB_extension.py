@@ -52,6 +52,25 @@ def set_binary_pars_lim(m, args):
                 args.OM_lim = np.inf
         else:
             args.OM_lim = 0
+    elif args.binary_model.lower() == "dd":
+        if args.ECC_lim:
+            if args.ECC_lim == "inf":
+                args.ECC_lim = np.inf
+        else:
+            args.ECC_lim = 0
+
+        if args.OM_lim:
+            if args.OM_lim == "inf":
+                args.OM_lim = np.inf
+        else:
+            args.OM_lim = 0
+
+        if args.OMDOT_lim:
+            if args.OMDOT_lim == "inf":
+                args.OMDOT_lim = np.inf
+        else:
+            args.OMDOT_lim = 0
+        pass
 
     return args
 
@@ -72,6 +91,13 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
 
     elif args.binary_model.lower() == "bt":
         for param in ["ECC", "OM"]:
+            if (
+                param not in f_params and span > getattr(args, f"{param}_lim") * u.d
+            ):  # args.F0_lim * u.d:
+                Ftest_R, m_plus_p = APTB.Ftest_param(m, f, param, args)
+                Ftests[Ftest_R] = param
+    elif args.binary_model.lower() == "dd":
+        for param in ["ECC", "OM", "OMDOT"]:
             if (
                 param not in f_params and span > getattr(args, f"{param}_lim") * u.d
             ):  # args.F0_lim * u.d:

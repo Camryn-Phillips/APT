@@ -1357,7 +1357,13 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--OM_lim",
-        help="minimum time span before OM can be fit for (default = PB*3)",
+        help="minimum time span before OM can be fit for (default = 0)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--OMDOT_lim",
+        help="minimum time span before OMDOT can be fit for (default = 0)",
         type=float,
         default=None,
     )
@@ -1667,6 +1673,12 @@ def main_for_loop(
             for param in ["PB", "T0", "A1"]:
                 getattr(m, param).frozen = False
             for param in ["ECC", "OM"]:
+                if getattr(args, f"{param}_lim") is None:
+                    getattr(m, param).frozen = False
+        elif args.binary_model.lower() == "dd":
+            for param in ["PB", "T0", "A1"]:
+                getattr(m, param).frozen = False
+            for param in ["ECC", "OM", "OMDOT"]:
                 if getattr(args, f"{param}_lim") is None:
                     getattr(m, param).frozen = False
 
@@ -2034,6 +2046,11 @@ def correct_solution_procedure(
             elif args.binary_model.lower() == "bt":
                 getattr(m_plus, "ECC").frozen = False
                 getattr(m_plus, "OM").frozen = False
+
+            elif args.binary_model.lower() == "dd":
+                getattr(m_plus, "ECC").frozen = False
+                getattr(m_plus, "OM").frozen = False
+                getattr(m_plus, "OMDOT").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
