@@ -316,6 +316,7 @@ class NodeData:
         if validated:
             return validated
 
+        # can easily add validator functions to this list
         validator_funcs = [self.F1_validator, self.A1_validator]
         self.validated = np.all([valid_func(args) for valid_func in validator_funcs])
         return self.validated
@@ -1932,6 +1933,9 @@ def main_for_loop(
             )
             if args.branches:
                 data, explored_name = solution_tree.node_selector(f, args, iteration)
+                if data is None:
+                    solution_tree.show()
+                    break
                 f.model, unJUMPed_clusters = data
                 if f.model is None:
                     break
