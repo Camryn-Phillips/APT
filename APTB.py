@@ -379,7 +379,7 @@ def starting_points(
 
     t = deepcopy(toas)
     if "clusters" not in t.table.columns:
-        t.table["clusters"] = t.get_clusters()
+        t.table["clusters"] = t.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
     mjd_values = t.get_mjds().value
     dts = np.fabs(mjd_values - mjd_values[:, np.newaxis]) + np.eye(len(mjd_values))
 
@@ -416,7 +416,7 @@ def starting_points(
 
 
 def JUMP_adder_begginning_cluster(
-    mask: np.ndarray, t, model, output_parfile, output_timfile
+    mask: np.ndarray, t, model, output_parfile, output_timfile, cluster_gap_limit
 ):
     """
     Adds JUMPs to a timfile as the begginning of analysis.
@@ -436,7 +436,7 @@ def JUMP_adder_begginning_cluster(
     model, t
     """
     if "clusters" not in t.table.columns:
-        t.table["clusters"] = t.get_clusters()
+        t.table["clusters"] = t.get_clusters(gap_limit=cluster_gap_limit * u.h)
     flag_name = "jump_tim"
 
     former_cluster = t.table[mask]["clusters"][0]
@@ -468,6 +468,7 @@ def phase_connector(
     cluster: int = "all",
     mjds_total: np.ndarray = None,
     residuals=None,
+    cluster_gap_limit=2 * u.h,
     **kwargs,
 ):
     """
@@ -523,12 +524,13 @@ def phase_connector(
                 cluster_number,
                 mjds_total,
                 residuals,
+                cluster_gap_limit,
                 **kwargs,
             )
         return
 
     if "clusters" not in toas.table.columns:
-        toas.table["clusters"] = toas.get_clusters()
+        toas.table["clusters"] = toas.get_clusters(gap_limit=cluster_gap_limit * u.h)
     # if "pulse_number" not in toas.table.colnames:  ######
     # toas.compute_pulse_numbers(model)
     # if "delta_pulse_number" not in toas.table.colnames:
@@ -624,7 +626,14 @@ def phase_connector(
 
     # run it again, will return None and end the recursion if nothing needs to be fixed
     phase_connector(
-        toas, model, connection_filter, cluster, mjds_total, residuals, **kwargs
+        toas,
+        model,
+        connection_filter,
+        cluster,
+        mjds_total,
+        residuals,
+        cluster_gap_limit,
+        **kwargs,
     )
 
 
@@ -1170,6 +1179,7 @@ def quadratic_phase_wrap_checker(
             residuals=pint.residuals.Residuals(t, m).calc_phase_resids(),
             mask_with_closest=mask_with_closest,
             wraps=True,
+            cluster_gap_limit=args.cluster_gap_limit,
         )
         if args.pre_save_state:
             save_state(
@@ -1595,6 +1605,12 @@ def APTB_argument_parse(parser, argv):
         type=bool,
         default=False,
     )
+    parser.add_argument(
+        "--cluster_gap_limit",
+        help="Maximum time span, in hours, between separate clusters. (default 2 hours)",
+        type=float,
+        default=2,
+    )
 
     args = parser.parse_args(argv)
 
@@ -1658,6 +1674,7 @@ def main_for_loop(
         m,
         output_timfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.tim"),
         output_parfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.par"),
+        cluster_gap_limit=args.cluster_gap_limit,
     )
     t.compute_pulse_numbers(m)
     args.binary_model = m.BINARY.value
@@ -1712,6 +1729,7 @@ def main_for_loop(
             mjds_total=mjds_total,
             residuals=residuals_start,
             wraps=True,
+            cluster_gap_limit=args.cluster_gap_limit,
         )
 
         if not save_state(
@@ -1910,6 +1928,7 @@ def main_for_loop(
             residuals=residuals,
             mask_with_closest=mask_with_closest,
             wraps=True,
+            cluster_gap_limit=args.cluster_gap_limit,
         )
         # If args.pre_save_state is False (default) then the save will not be saved
         if args.pre_save_state and not save_state(
@@ -2171,7 +2190,9 @@ def correct_solution_procedure(
             f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
         )
         starting_TOAs = t[mask]
-        print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
+        print(
+            f"starting points (clusters):\n {starting_TOAs.get_clusters(gap_limit = args.cluster_gap_limit * u.h)}"
+        )
         print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
         print(f"TOAs Removed (MJD): {bad_mjds}")
         return "success"
@@ -2228,7 +2249,7 @@ def main():
     os.chdir(data_path)
 
     toas = pint.toa.get_TOAs(timfile)
-    toas.table["clusters"] = toas.get_clusters()
+    toas.table["clusters"] = toas.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
     mjds_total = toas.get_mjds().value
 
     # every TOA, should never be edited
