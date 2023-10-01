@@ -11,6 +11,7 @@ from pint.phase import Phase
 from pint.fitter import WLSFitter
 from copy import deepcopy
 import astropy.units as u
+from astropy.coordinates import Angle
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -325,7 +326,7 @@ class NodeData:
         if args.binary_model is None:
             return True
         A1 = self.m.A1.value
-        return_value = True if A1 >= 0 else False
+        return_value = A1 >= 0
 
         if not return_value:
             log.warning(f"Negative A1! ({A1=}))")
@@ -333,16 +334,46 @@ class NodeData:
         return return_value
 
     def F1_validator(self, args):
-        F1 = self.m.F1.value
         if args.F1_sign_always is None:
             return True
-        elif args.F1_sign_always == "-":
-            return_value = True if F1 <= 0 else False
+        F1 = self.m.F1.value
+        if args.F1_sign_always == "-":
+            return_value = F1 <= 0
         elif args.F1_sign_always == "+":
-            return_value = True if F1 >= 0 else False
+            return_value = F1 >= 0
 
         if not return_value:
             log.warning(f"F1 wrong sign! ({F1=})")
+
+        return return_value
+
+    def RAJ_validator(self, args):
+        if args.RAJ_prior is None:
+            return True
+        RAJ = self.m.RAJ.value
+        return_value = True
+        if args.RAJ_prior[0]:
+            return_value = RAJ >= args.RAJ_prior[0]
+        if return_value and args.RAJ_prior[1]:
+            return_value = RAJ <= args.RAJ_prior[1]
+
+        if not return_value:
+            log.warning(f"The RAJ has left the boundary! ({RAJ=})")
+
+        return return_value
+
+    def DECJ_validator(self, args):
+        if args.DECJ_prior is None:
+            return True
+        DECJ = self.m.DECJ.value
+        return_value = True
+        if args.DECJ_prior[0]:
+            return_value = DECJ >= args.DECJ_prior[0]
+        if return_value and args.DECJ_prior[1]:
+            return_value = DECJ <= args.DECJ_prior[1]
+
+        if not return_value:
+            log.warning(f"The DECJ has left the boundary! ({DECJ=})")
 
         return return_value
 
@@ -1328,6 +1359,22 @@ def APTB_argument_parse(parser, argv):
         default=2.0,
     )
     parser.add_argument(
+        "--RAJ_prior",
+        help="Bounds on lower and upper RAJ value. Input in the form [lower bound (optional)],[upper bound (optional)] with no space after the comma."
+        + "\nTo not include a lower or upper bound, still include the comma in the appropriate spot."
+        + "\nThe bound should be entered in a form readable to the astropy.Angle class. ",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--DECJ_prior",
+        help="Bounds on lower and upper DECJ value. Input in the form [lower bound (optional)],[upper bound (optional)] with no space after the comma."
+        + "\nTo not include a lower or upper bound, still include the comma in the appropriate spot."
+        + "\nThe bound should be entered in a form readable to the astropy.Angle class",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
         "--F1_lim",
         help="minimum time span before Spindown (F1) can be fit for (default = time for F1 to change residuals by 0.35phase)",
         type=float,
@@ -1626,6 +1673,20 @@ def APTB_argument_parse(parser, argv):
         args.F1_sign_always = None
     if args.F1_sign_solution == "None":
         args.F1_sign_solution = None
+
+    if args.RAJ_prior:
+        RAJ_prior = args.RAJ_prior.split(",")
+        args.RAJ_prior = [None, None]
+        for i in (0, 1):
+            if RAJ_prior[i]:
+                args.RAJ_prior[i] = Angle(RAJ_prior[i]).hour
+
+    if args.DECJ_prior:
+        DECJ_prior = args.DECJ_prior.split(",")
+        args.RAJ_prior = [None, None]
+        for i in [0, 1]:
+            if DECJ_prior[i]:
+                args.DECJ_prior[i] = Angle(DECJ_prior[i]).deg
 
     return args, parser
 
