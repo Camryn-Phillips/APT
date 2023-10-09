@@ -129,6 +129,7 @@ class CustomTree(treelib.Tree):
                 print(
                     f"{colorama.Fore.RED}Validation failed, branch creation stopped: parent = {current_parent_id}, name = {node_name}{colorama.Style.RESET_ALL}"
                 )
+                return False
 
         node_name = f"d{depth}_w{min_wrap_number_total}_i{iteration}"
         chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
@@ -304,7 +305,7 @@ class NodeData:
 
         Parameters
         ----------
-        args : command line argument
+        args : command line arguments
 
         Returns
         -------
