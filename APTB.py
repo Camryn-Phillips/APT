@@ -11,6 +11,7 @@ from pint.phase import Phase
 from pint.fitter import WLSFitter
 from copy import deepcopy
 import astropy.units as u
+from astropy.coordinates import Angle
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -128,6 +129,7 @@ class CustomTree(treelib.Tree):
                 print(
                     f"{colorama.Fore.RED}Validation failed, branch creation stopped: parent = {current_parent_id}, name = {node_name}{colorama.Style.RESET_ALL}"
                 )
+                return False
 
         node_name = f"d{depth}_w{min_wrap_number_total}_i{iteration}"
         chisq_wrap_reversed = {i: j for j, i in chisq_wrap.items()}
@@ -303,7 +305,7 @@ class NodeData:
 
         Parameters
         ----------
-        args : command line argument
+        args : command line arguments
 
         Returns
         -------
@@ -316,13 +318,16 @@ class NodeData:
         if validated:
             return validated
 
+        # can easily add validator functions to this list
         validator_funcs = [self.F1_validator, self.A1_validator]
         self.validated = np.all([valid_func(args) for valid_func in validator_funcs])
         return self.validated
 
     def A1_validator(self, args):
+        if args.binary_model is None:
+            return True
         A1 = self.m.A1.value
-        return_value = True if A1 >= 0 else False
+        return_value = A1 >= 0
 
         if not return_value:
             log.warning(f"Negative A1! ({A1=}))")
@@ -330,16 +335,46 @@ class NodeData:
         return return_value
 
     def F1_validator(self, args):
-        F1 = self.m.F1.value
         if args.F1_sign_always is None:
             return True
-        elif args.F1_sign_always == "-":
-            return_value = True if F1 <= 0 else False
+        F1 = self.m.F1.value
+        if args.F1_sign_always == "-":
+            return_value = F1 <= 0
         elif args.F1_sign_always == "+":
-            return_value = True if F1 >= 0 else False
+            return_value = F1 >= 0
 
         if not return_value:
             log.warning(f"F1 wrong sign! ({F1=})")
+
+        return return_value
+
+    def RAJ_validator(self, args):
+        if args.RAJ_prior is None:
+            return True
+        RAJ = self.m.RAJ.value
+        return_value = True
+        if args.RAJ_prior[0]:
+            return_value = RAJ >= args.RAJ_prior[0]
+        if return_value and args.RAJ_prior[1]:
+            return_value = RAJ <= args.RAJ_prior[1]
+
+        if not return_value:
+            log.warning(f"The RAJ has left the boundary! ({RAJ=})")
+
+        return return_value
+
+    def DECJ_validator(self, args):
+        if args.DECJ_prior is None:
+            return True
+        DECJ = self.m.DECJ.value
+        return_value = True
+        if args.DECJ_prior[0]:
+            return_value = DECJ >= args.DECJ_prior[0]
+        if return_value and args.DECJ_prior[1]:
+            return_value = DECJ <= args.DECJ_prior[1]
+
+        if not return_value:
+            log.warning(f"The DECJ has left the boundary! ({DECJ=})")
 
         return return_value
 
@@ -376,7 +411,7 @@ def starting_points(
 
     t = deepcopy(toas)
     if "clusters" not in t.table.columns:
-        t.table["clusters"] = t.get_clusters()
+        t.table["clusters"] = t.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
     mjd_values = t.get_mjds().value
     dts = np.fabs(mjd_values - mjd_values[:, np.newaxis]) + np.eye(len(mjd_values))
 
@@ -413,7 +448,7 @@ def starting_points(
 
 
 def JUMP_adder_begginning_cluster(
-    mask: np.ndarray, t, model, output_parfile, output_timfile
+    mask: np.ndarray, t, model, output_parfile, output_timfile, cluster_gap_limit
 ):
     """
     Adds JUMPs to a timfile as the begginning of analysis.
@@ -433,7 +468,7 @@ def JUMP_adder_begginning_cluster(
     model, t
     """
     if "clusters" not in t.table.columns:
-        t.table["clusters"] = t.get_clusters()
+        t.table["clusters"] = t.get_clusters(gap_limit=cluster_gap_limit * u.h)
     flag_name = "jump_tim"
 
     former_cluster = t.table[mask]["clusters"][0]
@@ -465,6 +500,7 @@ def phase_connector(
     cluster: int = "all",
     mjds_total: np.ndarray = None,
     residuals=None,
+    cluster_gap_limit=2 * u.h,
     **kwargs,
 ):
     """
@@ -520,12 +556,13 @@ def phase_connector(
                 cluster_number,
                 mjds_total,
                 residuals,
+                cluster_gap_limit,
                 **kwargs,
             )
         return
 
     if "clusters" not in toas.table.columns:
-        toas.table["clusters"] = toas.get_clusters()
+        toas.table["clusters"] = toas.get_clusters(gap_limit=cluster_gap_limit * u.h)
     # if "pulse_number" not in toas.table.colnames:  ######
     # toas.compute_pulse_numbers(model)
     # if "delta_pulse_number" not in toas.table.colnames:
@@ -621,7 +658,14 @@ def phase_connector(
 
     # run it again, will return None and end the recursion if nothing needs to be fixed
     phase_connector(
-        toas, model, connection_filter, cluster, mjds_total, residuals, **kwargs
+        toas,
+        model,
+        connection_filter,
+        cluster,
+        mjds_total,
+        residuals,
+        cluster_gap_limit,
+        **kwargs,
     )
 
 
@@ -689,6 +733,7 @@ def save_state(
             iteration,
             fig,
             ax,
+            args.JUMPs_in_fit_params_list,
             mask_with_closest=mask_with_closest,
         )
 
@@ -701,7 +746,9 @@ def save_state(
     return True
 
 
-def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
+def plot_plain(
+    f, mjds, t, m, iteration, fig, ax, JUMPs_in_fit_params_list, mask_with_closest=None
+):
     """
     A helper function for save_state. Graphs the time & phase residuals.
     Including mask_with_closests colors red the TOAs not JUMPed.
@@ -745,7 +792,8 @@ def plot_plain(f, mjds, t, m, iteration, fig, ax, mask_with_closest=None):
     if f:
         for param in f.get_fitparams().keys():
             if "JUMP" in str(param):
-                fitparams += f"J{str(param)[4:]} "
+                if JUMPs_in_fit_params_list:
+                    fitparams += f"J{str(param)[4:]} "
             else:
                 fitparams += str(param) + " "
 
@@ -921,9 +969,10 @@ def do_Ftests(f, mask_with_closest, args):
         Ftest_D, m_plus_p = Ftest_param(m, f, "F2", args)
         Ftests[Ftest_D] = "F2"
 
-    m, t, f, f_params, span, Ftests, args = APTB_extension.do_Ftests_binary(
-        m, t, f, f_params, span, Ftests, args
-    )
+    if args.binary_model is not None:
+        m, t, f, f_params, span, Ftests, args = APTB_extension.do_Ftests_binary(
+            m, t, f, f_params, span, Ftests, args
+        )
 
     # remove possible boolean elements from Ftest returning False if chi2 increases
     Ftests_reversed = {i: j for j, i in Ftests.items()}
@@ -1162,6 +1211,7 @@ def quadratic_phase_wrap_checker(
             residuals=pint.residuals.Residuals(t, m).calc_phase_resids(),
             mask_with_closest=mask_with_closest,
             wraps=True,
+            cluster_gap_limit=args.cluster_gap_limit,
         )
         if args.pre_save_state:
             save_state(
@@ -1310,6 +1360,22 @@ def APTB_argument_parse(parser, argv):
         default=2.0,
     )
     parser.add_argument(
+        "--RAJ_prior",
+        help="Bounds on lower and upper RAJ value. Input in the form [lower bound (optional)],[upper bound (optional)] with no space after the comma."
+        + "\nTo not include a lower or upper bound, still include the comma in the appropriate spot."
+        + "\nThe bound should be entered in a form readable to the astropy.Angle class. ",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--DECJ_prior",
+        help="Bounds on lower and upper DECJ value. Input in the form [lower bound (optional)],[upper bound (optional)] with no space after the comma."
+        + "\nTo not include a lower or upper bound, still include the comma in the appropriate spot."
+        + "\nThe bound should be entered in a form readable to the astropy.Angle class",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
         "--F1_lim",
         help="minimum time span before Spindown (F1) can be fit for (default = time for F1 to change residuals by 0.35phase)",
         type=float,
@@ -1349,7 +1415,13 @@ def APTB_argument_parse(parser, argv):
     )
     parser.add_argument(
         "--OM_lim",
-        help="minimum time span before OM can be fit for (default = PB*3)",
+        help="minimum time span before OM can be fit for (default = 0)",
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--OMDOT_lim",
+        help="minimum time span before OMDOT can be fit for (default = 0)",
         type=float,
         default=None,
     )
@@ -1574,6 +1646,19 @@ def APTB_argument_parse(parser, argv):
         type=bool,
         default=True,
     )
+    parser.add_argument(
+        "--JUMPs_in_fit_params_list",
+        help="Whether to fit for the main parameters after phase connecting every cluster.",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=False,
+    )
+    parser.add_argument(
+        "--cluster_gap_limit",
+        help="Maximum time span, in hours, between separate clusters. (default 2 hours)",
+        type=float,
+        default=2,
+    )
 
     args = parser.parse_args(argv)
 
@@ -1589,6 +1674,20 @@ def APTB_argument_parse(parser, argv):
         args.F1_sign_always = None
     if args.F1_sign_solution == "None":
         args.F1_sign_solution = None
+
+    if args.RAJ_prior:
+        RAJ_prior = args.RAJ_prior.split(",")
+        args.RAJ_prior = [None, None]
+        for i in (0, 1):
+            if RAJ_prior[i]:
+                args.RAJ_prior[i] = Angle(RAJ_prior[i]).hour
+
+    if args.DECJ_prior:
+        DECJ_prior = args.DECJ_prior.split(",")
+        args.RAJ_prior = [None, None]
+        for i in [0, 1]:
+            if DECJ_prior[i]:
+                args.DECJ_prior[i] = Angle(DECJ_prior[i]).deg
 
     return args, parser
 
@@ -1637,21 +1736,30 @@ def main_for_loop(
         m,
         output_timfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.tim"),
         output_parfile=alg_saves_mask_Path / Path(f"{pulsar_name}_start.par"),
+        cluster_gap_limit=args.cluster_gap_limit,
     )
     t.compute_pulse_numbers(m)
     args.binary_model = m.BINARY.value
-    args = APTB_extension.set_binary_pars_lim(m, args)
+    if args.binary_model is not None:
+        args = APTB_extension.set_binary_pars_lim(m, args)
 
     # start fitting for main binary parameters immediately
-    if args.binary_model.lower() == "ell1":
-        for param in ["PB", "TASC", "A1"]:
-            getattr(m, param).frozen = False
-    elif args.binary_model.lower() == "bt":
-        for param in ["PB", "T0", "A1"]:
-            getattr(m, param).frozen = False
-        for param in ["ECC", "OM"]:
-            if getattr(args, f"{param}_lim") is None:
+    if args.binary_model is not None:
+        if args.binary_model.lower() == "ell1":
+            for param in ["PB", "TASC", "A1"]:
                 getattr(m, param).frozen = False
+        elif args.binary_model.lower() == "bt":
+            for param in ["PB", "T0", "A1"]:
+                getattr(m, param).frozen = False
+            for param in ["ECC", "OM"]:
+                if getattr(args, f"{param}_lim") is None:
+                    getattr(m, param).frozen = False
+        elif args.binary_model.lower() == "dd":
+            for param in ["PB", "T0", "A1"]:
+                getattr(m, param).frozen = False
+            for param in ["ECC", "OM", "OMDOT"]:
+                if getattr(args, f"{param}_lim") is None:
+                    getattr(m, param).frozen = False
 
     set_F0_lim(args, m)
 
@@ -1683,6 +1791,7 @@ def main_for_loop(
             mjds_total=mjds_total,
             residuals=residuals_start,
             wraps=True,
+            cluster_gap_limit=args.cluster_gap_limit,
         )
 
         if not save_state(
@@ -1881,6 +1990,7 @@ def main_for_loop(
             residuals=residuals,
             mask_with_closest=mask_with_closest,
             wraps=True,
+            cluster_gap_limit=args.cluster_gap_limit,
         )
         # If args.pre_save_state is False (default) then the save will not be saved
         if args.pre_save_state and not save_state(
@@ -1916,6 +2026,9 @@ def main_for_loop(
             )
             if args.branches:
                 data, explored_name = solution_tree.node_selector(f, args, iteration)
+                if data is None:
+                    solution_tree.show()
+                    break
                 f.model, unJUMPed_clusters = data
                 if f.model is None:
                     break
@@ -2006,13 +2119,19 @@ def correct_solution_procedure(
         getattr(m_plus, "DECJ").frozen = False
         getattr(m_plus, "F1").frozen = False
 
-        if args.binary_model.lower() == "ell1":
-            getattr(m_plus, "EPS1").frozen = False
-            getattr(m_plus, "EPS2").frozen = False
+        if args.binary_model is not None:
+            if args.binary_model.lower() == "ell1":
+                getattr(m_plus, "EPS1").frozen = False
+                getattr(m_plus, "EPS2").frozen = False
 
-        if args.binary_model.lower() == "bt":
-            getattr(m_plus, "ECC").frozen = False
-            getattr(m_plus, "OM").frozen = False
+            elif args.binary_model.lower() == "bt":
+                getattr(m_plus, "ECC").frozen = False
+                getattr(m_plus, "OM").frozen = False
+
+            elif args.binary_model.lower() == "dd":
+                getattr(m_plus, "ECC").frozen = False
+                getattr(m_plus, "OM").frozen = False
+                getattr(m_plus, "OMDOT").frozen = False
 
     f_plus = pint.fitter.WLSFitter(t, m_plus)
     # if this is truly the correct solution, fitting up to 4 times should be fine
@@ -2133,7 +2252,9 @@ def correct_solution_procedure(
             f"\nThe final fit parameters are: {[key for key in f.get_fitparams().keys()]}"
         )
         starting_TOAs = t[mask]
-        print(f"starting points (clusters):\n {starting_TOAs.get_clusters()}")
+        print(
+            f"starting points (clusters):\n {starting_TOAs.get_clusters(gap_limit = args.cluster_gap_limit * u.h)}"
+        )
         print(f"starting points (MJDs): {starting_TOAs.get_mjds()}")
         print(f"TOAs Removed (MJD): {bad_mjds}")
         return "success"
@@ -2190,7 +2311,7 @@ def main():
     os.chdir(data_path)
 
     toas = pint.toa.get_TOAs(timfile)
-    toas.table["clusters"] = toas.get_clusters()
+    toas.table["clusters"] = toas.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
     mjds_total = toas.get_mjds().value
 
     # every TOA, should never be edited
